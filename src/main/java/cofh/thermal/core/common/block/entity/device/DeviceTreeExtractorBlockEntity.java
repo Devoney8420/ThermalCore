@@ -17,9 +17,10 @@ import it.unimi.dsi.fastutil.objects.Reference2ReferenceMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Vec3i;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.Connection;
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
@@ -163,7 +164,7 @@ public class DeviceTreeExtractorBlockEntity extends DeviceBlockEntity implements
                 boostMult = 1.0F;
             }
             float sizeMult = MathHelper.sqrt((float) Math.min(logs.length, recipe.getMaxHeight()) * Math.min(leaves.length, recipe.getMaxLeaves()) / (recipe.getMinHeight() * recipe.getMinLeaves()));
-            outputTank.fill(new FluidStack(renderFluid, (int) (renderFluid.getAmount() * baseMod * boostMult * sizeMult)), EXECUTE);
+            outputTank.fill(renderFluid.copyWithAmount((int) (renderFluid.getAmount() * baseMod * boostMult * sizeMult)), EXECUTE);
         }
         if (curFluid != renderFluid.getFluid()) {
             TileStatePacket.sendToClient(this);
@@ -196,9 +197,9 @@ public class DeviceTreeExtractorBlockEntity extends DeviceBlockEntity implements
 
     // region NETWORK
     @Override
-    public void onDataPacket(Connection net, ClientboundBlockEntityDataPacket pkt) {
+    public void onDataPacket(Connection net, ClientboundBlockEntityDataPacket pkt, HolderLookup.Provider registries) {
 
-        super.onDataPacket(net, pkt);
+        super.onDataPacket(net, pkt, registries);
 
         if (level != null) {
             level.getModelDataManager().requestRefresh(this);
@@ -207,7 +208,7 @@ public class DeviceTreeExtractorBlockEntity extends DeviceBlockEntity implements
 
     // CONTROL
     @Override
-    public void handleControlPacket(FriendlyByteBuf buffer) {
+    public void handleControlPacket(RegistryFriendlyByteBuf buffer) {
 
         super.handleControlPacket(buffer);
 
@@ -218,7 +219,7 @@ public class DeviceTreeExtractorBlockEntity extends DeviceBlockEntity implements
 
     // GUI
     @Override
-    public FriendlyByteBuf getGuiPacket(FriendlyByteBuf buffer) {
+    public RegistryFriendlyByteBuf getGuiPacket(RegistryFriendlyByteBuf buffer) {
 
         super.getGuiPacket(buffer);
 
@@ -230,7 +231,7 @@ public class DeviceTreeExtractorBlockEntity extends DeviceBlockEntity implements
     }
 
     @Override
-    public void handleGuiPacket(FriendlyByteBuf buffer) {
+    public void handleGuiPacket(RegistryFriendlyByteBuf buffer) {
 
         super.handleGuiPacket(buffer);
 
@@ -241,7 +242,7 @@ public class DeviceTreeExtractorBlockEntity extends DeviceBlockEntity implements
 
     // STATE
     @Override
-    public FriendlyByteBuf getStatePacket(FriendlyByteBuf buffer) {
+    public RegistryFriendlyByteBuf getStatePacket(RegistryFriendlyByteBuf buffer) {
 
         super.getStatePacket(buffer);
 
@@ -251,7 +252,7 @@ public class DeviceTreeExtractorBlockEntity extends DeviceBlockEntity implements
     }
 
     @Override
-    public void handleStatePacket(FriendlyByteBuf buffer) {
+    public void handleStatePacket(RegistryFriendlyByteBuf buffer) {
 
         super.handleStatePacket(buffer);
 
@@ -265,9 +266,9 @@ public class DeviceTreeExtractorBlockEntity extends DeviceBlockEntity implements
 
     // region NBT
     @Override
-    public void load(CompoundTag nbt) {
+    protected void loadAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
 
-        super.load(nbt);
+        super.loadAdditional(nbt, registries);
 
         boostCycles = nbt.getInt(TAG_BOOST_CYCLES);
         boostMax = nbt.getInt(TAG_BOOST_MAX);
@@ -276,9 +277,9 @@ public class DeviceTreeExtractorBlockEntity extends DeviceBlockEntity implements
     }
 
     @Override
-    public void saveAdditional(CompoundTag nbt) {
+    protected void saveAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
 
-        super.saveAdditional(nbt);
+        super.saveAdditional(nbt, registries);
 
         nbt.putInt(TAG_BOOST_CYCLES, boostCycles);
         nbt.putInt(TAG_BOOST_MAX, boostMax);

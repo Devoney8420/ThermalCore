@@ -7,14 +7,15 @@ import cofh.core.util.control.RedstoneControlModule;
 import cofh.core.util.control.SecurityControlModule;
 import cofh.thermal.core.common.config.ThermalCoreConfig;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 
-import static cofh.lib.util.constants.NBTTags.TAG_BLOCK_ENTITY;
 
 public class LogisticsBlockEntity extends BlockEntityCoFH implements ISecurableTile, IRedstoneControllableTile {
 
@@ -29,7 +30,7 @@ public class LogisticsBlockEntity extends BlockEntityCoFH implements ISecurableT
     @Override
     public ItemStack createItemStackTag(ItemStack stack) {
 
-        CompoundTag nbt = stack.getOrCreateTagElement(TAG_BLOCK_ENTITY);
+        CompoundTag nbt = copyBlockEntityData(stack);
         if (hasSecurity()) {
             securityControl().write(nbt);
         }
@@ -37,25 +38,25 @@ public class LogisticsBlockEntity extends BlockEntityCoFH implements ISecurableT
             redstoneControl().writeSettings(nbt);
         }
         if (!nbt.isEmpty()) {
-            stack.addTagElement(TAG_BLOCK_ENTITY, nbt);
+            BlockItem.setBlockEntityData(stack, getType(), nbt);
         }
         return super.createItemStackTag(stack);
     }
 
     // region NBT
     @Override
-    public void load(CompoundTag nbt) {
+    protected void loadAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
 
-        super.load(nbt);
+        super.loadAdditional(nbt, registries);
 
         securityControl.read(nbt);
         redstoneControl.read(nbt);
     }
 
     @Override
-    public void saveAdditional(CompoundTag nbt) {
+    protected void saveAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
 
-        super.saveAdditional(nbt);
+        super.saveAdditional(nbt, registries);
 
         securityControl.write(nbt);
         redstoneControl.write(nbt);
@@ -66,7 +67,7 @@ public class LogisticsBlockEntity extends BlockEntityCoFH implements ISecurableT
 
     // CONTROL
     @Override
-    public FriendlyByteBuf getControlPacket(FriendlyByteBuf buffer) {
+    public RegistryFriendlyByteBuf getControlPacket(RegistryFriendlyByteBuf buffer) {
 
         super.getControlPacket(buffer);
 
@@ -77,7 +78,7 @@ public class LogisticsBlockEntity extends BlockEntityCoFH implements ISecurableT
     }
 
     @Override
-    public void handleControlPacket(FriendlyByteBuf buffer) {
+    public void handleControlPacket(RegistryFriendlyByteBuf buffer) {
 
         super.handleControlPacket(buffer);
 

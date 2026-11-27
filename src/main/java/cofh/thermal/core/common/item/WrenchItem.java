@@ -6,23 +6,23 @@ import cofh.core.util.ProxyUtils;
 import cofh.lib.api.block.IDismantleable;
 import cofh.lib.api.block.IWrenchable;
 import cofh.lib.util.helpers.BlockHelper;
-import com.google.common.collect.ImmutableMultimap;
-import com.google.common.collect.Multimap;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.EquipmentSlotGroup;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.world.item.component.ItemAttributeModifiers;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
@@ -38,16 +38,13 @@ import static cofh.lib.util.helpers.StringHelper.getTextComponent;
 
 public class WrenchItem extends ItemCoFH implements IMultiModeItem {
 
-    private final Multimap<Attribute, AttributeModifier> toolAttributes;
+    private static final ItemAttributeModifiers TOOL_ATTRIBUTES = ItemAttributeModifiers.builder()
+            .add(Attributes.ATTACK_DAMAGE, new AttributeModifier(ResourceLocation.withDefaultNamespace("base_attack_damage"),
+                    0.0D, AttributeModifier.Operation.ADD_VALUE), EquipmentSlotGroup.MAINHAND).build();
 
     public WrenchItem(Properties builder) {
 
         super(builder);
-
-        ImmutableMultimap.Builder<Attribute, AttributeModifier> multimap = ImmutableMultimap.builder();
-        multimap.put(Attributes.ATTACK_DAMAGE, new AttributeModifier(BASE_ATTACK_DAMAGE_UUID, "Tool modifier", 0.0D, AttributeModifier.Operation.ADDITION));
-
-        this.toolAttributes = multimap.build();
     }
 
     @Override
@@ -90,10 +87,8 @@ public class WrenchItem extends ItemCoFH implements IMultiModeItem {
     @Override
     public boolean hurtEnemy(ItemStack stack, LivingEntity target, LivingEntity attacker) {
 
-        target.addEffect(new MobEffectInstance(WRENCHED.get(), 60, 0, false, false));
-        stack.hurtAndBreak(1, attacker, (entity) -> {
-            entity.broadcastBreakEvent(EquipmentSlot.MAINHAND);
-        });
+        target.addEffect(new MobEffectInstance(WRENCHED.getDelegate(), 60, 0, false, false));
+        stack.hurtAndBreak(1, attacker, EquipmentSlot.MAINHAND);
         return true;
     }
 
@@ -118,9 +113,9 @@ public class WrenchItem extends ItemCoFH implements IMultiModeItem {
     }
 
     @Override
-    public Multimap<Attribute, AttributeModifier> getAttributeModifiers(EquipmentSlot slot, ItemStack stack) {
+    public ItemAttributeModifiers getDefaultAttributeModifiers(ItemStack stack) {
 
-        return slot == EquipmentSlot.MAINHAND ? this.toolAttributes : ImmutableMultimap.of();
+        return TOOL_ATTRIBUTES;
     }
 
     @Override

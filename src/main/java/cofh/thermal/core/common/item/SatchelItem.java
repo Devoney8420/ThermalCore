@@ -21,6 +21,9 @@ import cofh.thermal.lib.common.item.InventoryContainerItemAugmentable;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.registries.BuiltInRegistries;
+import cofh.lib.util.helpers.StackData;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.network.chat.Component;
@@ -28,6 +31,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.util.FastColor;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.MenuProvider;
@@ -35,12 +39,12 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
-import net.minecraft.world.item.DyeableLeatherItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.Level;
-import net.neoforged.neoforge.event.entity.player.EntityItemPickupEvent;
+import net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -52,7 +56,7 @@ import static cofh.lib.util.helpers.StringHelper.getTextComponent;
 import static cofh.thermal.lib.util.ThermalAugmentRules.createAllowValidator;
 import static net.minecraft.nbt.Tag.TAG_COMPOUND;
 
-public class SatchelItem extends InventoryContainerItemAugmentable implements IColorableItem, DyeableLeatherItem, IFilterableItem, IMultiModeItem, ISecurableItem, MenuProvider {
+public class SatchelItem extends InventoryContainerItemAugmentable implements IColorableItem, IFilterableItem, IMultiModeItem, ISecurableItem, MenuProvider {
 
     protected static final Set<Item> BANNED_ITEMS = new ObjectOpenHashSet<>();
 
@@ -62,7 +66,7 @@ public class SatchelItem extends InventoryContainerItemAugmentable implements IC
             BANNED_ITEMS.clear();
 
             for (String loc : itemLocs) {
-                Item item = BuiltInRegistries.ITEM.get(new ResourceLocation(loc));
+                Item item = BuiltInRegistries.ITEM.get(ResourceLocation.parse(loc));
                 if (item != null) {
                     BANNED_ITEMS.add(item);
                 }
@@ -76,11 +80,17 @@ public class SatchelItem extends InventoryContainerItemAugmentable implements IC
 
         super(builder, slots);
 
-        ProxyUtils.registerItemModelProperty(this, new ResourceLocation("color"), (stack, world, entity, seed) -> (hasCustomColor(stack) ? 1F : 0));
+        ProxyUtils.registerItemModelProperty(this, ResourceLocation.parse("color"), (stack, world, entity, seed) -> (stack.has(DataComponents.DYED_COLOR) ? 1F : 0));
         ProxyUtils.registerColorable(this);
 
         numSlots = () -> ThermalCoreConfig.storageAugments;
         augValidator = createAllowValidator(TAG_AUGMENT_TYPE_UPGRADE, TAG_AUGMENT_TYPE_FILTER);
+    }
+
+    @Override
+    public int getColor(ItemStack stack, int tintIndex) {
+
+        return FastColor.ARGB32.opaque(IColorableItem.super.getColor(stack, tintIndex));
     }
 
     @Override
@@ -104,27 +114,26 @@ public class SatchelItem extends InventoryContainerItemAugmentable implements IC
     }
 
     // region HELPERS
-    public static boolean onItemPickup(EntityItemPickupEvent event, ItemStack container) {
+    public static boolean onItemPickup(ItemEntityPickupEvent.Pre event, ItemStack container) {
 
         SatchelItem satchelItem = (SatchelItem) container.getItem();
-        if (satchelItem.getMode(container) <= 0 || !satchelItem.canPlayerAccess(container, event.getEntity())) {
+        if (satchelItem.getMode(container) <= 0 || !satchelItem.canPlayerAccess(container, event.getPlayer())) {
             return false;
         }
-        ItemEntity eventItem = event.getItem();
+        ItemEntity eventItem = event.getItemEntity();
         int count = eventItem.getItem().getCount();
 
-        if (satchelItem.getFilter(container).valid(eventItem.getItem())) {
-            Player player = event.getEntity();
+        if (satchelItem.getFilter(container, event.getPlayer().registryAccess()).valid(eventItem.getItem())) {
+            Player player = event.getPlayer();
             dropExtraItems(container, player);
 
-            SimpleItemInv containerInv = satchelItem.getContainerInventory(container);
+            SimpleItemInv containerInv = satchelItem.getContainerInventory(container, player.registryAccess());
             eventItem.setItem(InventoryHelper.insertStackIntoInventory(containerInv, eventItem.getItem(), false));
 
             if (eventItem.getItem().getCount() != count) {
                 container.setPopTime(5);
                 player.level.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.ITEM_PICKUP, SoundSource.PLAYERS, 0.2F, ((MathHelper.RANDOM.nextFloat() - MathHelper.RANDOM.nextFloat()) * 0.7F + 1.0F) * 2.0F);
-                containerInv.write(satchelItem.getOrCreateInvTag(container));
-                satchelItem.onContainerInventoryChanged(container);
+                satchelItem.saveContainerInventory(container, player.registryAccess(), containerInv);
             }
         }
         return eventItem.getItem().getCount() != count;
@@ -132,20 +141,28 @@ public class SatchelItem extends InventoryContainerItemAugmentable implements IC
 
     public static void dropExtraItems(ItemStack container, Player player) {
 
-        if (container.getItem() instanceof SatchelItem satchel) {
-            CompoundTag nbt = satchel.getOrCreateInvTag(container);
-            int numSlots = satchel.getContainerSlots(container);
-
-            ListTag list = nbt.getList(TAG_ITEM_INV, TAG_COMPOUND);
-            for (int i = list.size(); i > 0; --i) {
-                CompoundTag slotTag = list.getCompound(i);
-                int slot = slotTag.getByte(TAG_SLOT);
-                if (slot >= numSlots) {
-                    Utils.dropItemStackIntoWorldWithRandomness(ItemStorageCoFH.loadItemStack(slotTag), player.level(), player.position());
-                } else {
-                    return; // This optimization breaks out of the loop early, since slots are always tagged in ascending order.
-                }
+        if (!(container.getItem() instanceof SatchelItem satchel) || player.level().isClientSide()) {
+            return;
+        }
+        CompoundTag nbt = satchel.getInventoryTag(container);
+        int numSlots = satchel.getContainerSlots(container);
+        ListTag list = nbt.getList(TAG_ITEM_INV, TAG_COMPOUND);
+        List<ItemStack> overflow = new ArrayList<>();
+        for (int i = list.size() - 1; i >= 0; --i) {
+            CompoundTag slotTag = list.getCompound(i);
+            if (slotTag.getByte(TAG_SLOT) >= numSlots) {
+                overflow.add(StackData.readItem(player.registryAccess(), slotTag));
+                list.remove(i);
             }
+        }
+        if (!overflow.isEmpty()) {
+            if (list.isEmpty()) {
+                nbt.remove(TAG_ITEM_INV);
+            } else {
+                nbt.put(TAG_ITEM_INV, list);
+            }
+            satchel.setInventoryTag(container, nbt);
+            overflow.forEach(stack -> Utils.dropItemStackIntoWorldWithRandomness(stack, player.level(), player.position()));
         }
     }
 
@@ -172,9 +189,9 @@ public class SatchelItem extends InventoryContainerItemAugmentable implements IC
     }
 
     @Override
-    protected SimpleItemInv readInventoryFromNBT(ItemStack container) {
+    protected SimpleItemInv readInventoryFromNBT(ItemStack container, HolderLookup.Provider registries) {
 
-        CompoundTag containerTag = getOrCreateInvTag(container);
+        CompoundTag containerTag = getInventoryTag(container);
         int numSlots = getContainerSlots(container);
         ArrayList<ItemStorageCoFH> invSlots = new ArrayList<>(numSlots);
         for (int i = 0; i < numSlots; ++i) {
@@ -191,20 +208,15 @@ public class SatchelItem extends InventoryContainerItemAugmentable implements IC
                 return !BANNED_ITEMS.contains(stack.getItem());
             }
         };
-        inventory.read(containerTag);
+        inventory.read(registries, containerTag);
         return inventory;
     }
 
     @Override
-    protected void setAttributesFromAugment(ItemStack container, CompoundTag augmentData) {
+    protected void setAttributesFromAugment(CompoundTag properties, CompoundTag augmentData) {
 
-        CompoundTag subTag = container.getTagElement(TAG_PROPERTIES);
-        if (subTag == null) {
-            return;
-        }
-        setAttributeFromAugmentString(subTag, augmentData, TAG_FILTER_TYPE);
-
-        super.setAttributesFromAugment(container, augmentData);
+        setAttributeFromAugmentString(properties, augmentData, TAG_FILTER_TYPE);
+        super.setAttributesFromAugment(properties, augmentData);
     }
     // endregion
 
@@ -225,7 +237,7 @@ public class SatchelItem extends InventoryContainerItemAugmentable implements IC
 
     // region IFilterableItem
     @Override
-    public IFilter getFilter(ItemStack stack) {
+    public IFilter getFilter(ItemStack stack, HolderLookup.Provider registries) {
 
         String filterType = FilterHelper.getFilterType(stack);
         if (filterType.isEmpty()) {
@@ -238,7 +250,7 @@ public class SatchelItem extends InventoryContainerItemAugmentable implements IC
         if (FILTERS.size() > MAP_CAPACITY) {
             FILTERS.clear();
         }
-        FILTERS.put(stack, FilterRegistry.getFilter(filterType, stack.getTag()));
+        FILTERS.put(stack, FilterRegistry.getFilter(filterType, registries, stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag()));
         return FILTERS.get(stack);
     }
 

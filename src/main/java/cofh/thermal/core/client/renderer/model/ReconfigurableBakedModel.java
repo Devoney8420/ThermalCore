@@ -13,10 +13,12 @@ import net.minecraft.client.renderer.block.model.ItemOverrides;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.core.Direction;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.client.model.IDynamicBakedModel;
 import net.neoforged.neoforge.client.model.data.ModelData;
@@ -28,7 +30,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-import static cofh.lib.util.constants.NBTTags.TAG_BLOCK_ENTITY;
 import static cofh.lib.util.constants.NBTTags.TAG_SIDES;
 import static cofh.thermal.core.client.ThermalTextures.*;
 import static cofh.thermal.lib.util.Constants.DEFAULT_MACHINE_SIDES_RAW;
@@ -98,7 +99,8 @@ public class ReconfigurableBakedModel extends UnderlayBakedModel implements IDyn
         @Override
         public BakedModel resolve(BakedModel model, ItemStack stack, @Nullable ClientLevel worldIn, @Nullable LivingEntity entityIn, int seed) {
 
-            CompoundTag tag = stack.getTagElement(TAG_BLOCK_ENTITY);
+            CustomData data = stack.get(DataComponents.BLOCK_ENTITY_DATA);
+            CompoundTag tag = data == null ? null : data.copyTag();
             byte[] sideConfigRaw = getSideConfigRaw(tag);
             int itemHash = new ComparableItemStack(stack).hashCode();
             int configHash = Arrays.hashCode(sideConfigRaw);

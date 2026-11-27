@@ -3,13 +3,12 @@ package cofh.thermal.lib.util.recipes.internal;
 import cofh.lib.api.inventory.IItemStackHolder;
 import cofh.thermal.lib.util.recipes.IMachineInventory;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.tags.EnchantmentTags;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.neoforged.neoforge.fluids.FluidStack;
 
 import javax.annotation.Nullable;
 import java.util.List;
-import java.util.Map;
 
 public class DisenchantMachineRecipe extends BaseMachineRecipe {
 
@@ -26,12 +25,10 @@ public class DisenchantMachineRecipe extends BaseMachineRecipe {
     private int getEnchantmentXp(ItemStack stack) {
 
         int encXP = 0;
-        Map<Enchantment, Integer> map = EnchantmentHelper.getEnchantments(stack);
-        for (Map.Entry<Enchantment, Integer> entry : map.entrySet()) {
-            Enchantment enchantment = entry.getKey();
-            int level = entry.getValue();
-            if (!enchantment.isCurse()) {
-                encXP += enchantment.getMinCost(level);
+        for (var entry : EnchantmentHelper.getEnchantmentsForCrafting(stack).entrySet()) {
+            var enchantment = entry.getKey();
+            if (!enchantment.is(EnchantmentTags.CURSE)) {
+                encXP += enchantment.value().getMinCost(entry.getIntValue());
             }
         }
         return encXP;

@@ -16,14 +16,17 @@ import cofh.thermal.lib.common.block.entity.DeviceBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BiomeTags;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.enchantment.ItemEnchantments;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.material.Fluids;
@@ -37,7 +40,6 @@ import net.neoforged.neoforge.items.IItemHandler;
 
 import javax.annotation.Nullable;
 import java.util.List;
-import java.util.Map;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
@@ -162,7 +164,8 @@ public class DeviceFisherBlockEntity extends DeviceBlockEntity implements ITicka
             return;
         }
         if (valid) {
-            LootTable table = level.getServer().getLootData().getLootTable(FisherManager.instance().getBoostLootTable(inputSlot.getItemStack()));
+            LootTable table = level.getServer().reloadableRegistries().getLootTable(ResourceKey.create(
+                    Registries.LOOT_TABLE, FisherManager.instance().getBoostLootTable(inputSlot.getItemStack())));
             LootParams lootparams = (new LootParams.Builder((ServerLevel) level))
                     .withParameter(LootContextParams.ORIGIN, Vec3.atLowerCornerOf(getBlockPos()))
                     .create(LootContextParamSets.EMPTY);
@@ -204,18 +207,18 @@ public class DeviceFisherBlockEntity extends DeviceBlockEntity implements ITicka
 
     // region NBT
     @Override
-    public void load(CompoundTag nbt) {
+    protected void loadAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
 
-        super.load(nbt);
+        super.loadAdditional(nbt, registries);
 
         process = nbt.getInt(TAG_PROCESS);
         valid = nbt.getBoolean(TAG_VALID);
     }
 
     @Override
-    public void saveAdditional(CompoundTag nbt) {
+    protected void saveAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
 
-        super.saveAdditional(nbt);
+        super.saveAdditional(nbt, registries);
 
         nbt.putInt(TAG_PROCESS, process);
         nbt.putBoolean(TAG_VALID, valid);
@@ -279,9 +282,9 @@ public class DeviceFisherBlockEntity extends DeviceBlockEntity implements ITicka
     }
 
     @Override
-    protected void finalizeAttributes(Map<Enchantment, Integer> enchantmentMap) {
+    protected void finalizeAttributes(ItemEnchantments enchantments) {
 
-        super.finalizeAttributes(enchantmentMap);
+        super.finalizeAttributes(enchantments);
 
         area = null;
     }

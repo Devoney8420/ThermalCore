@@ -67,10 +67,6 @@ public class TCoreItems {
         DetonatorItem.registerTNT(BLOCKS.get(ID_PHYTO_TNT), ((TntBlockCoFH) (BLOCKS.get(ID_PHYTO_TNT))).getFactory());
         DetonatorItem.registerTNT(BLOCKS.get(ID_NUKE_TNT), ((TntBlockCoFH) (BLOCKS.get(ID_NUKE_TNT))).getFactory());
 
-        ((DivingArmorItem) ITEMS.get(ID_DIVING_HELMET)).setup();
-        ((DivingArmorItem) ITEMS.get(ID_DIVING_CHESTPLATE)).setup();
-        ((DivingArmorItem) ITEMS.get(ID_DIVING_LEGGINGS)).setup();
-        ((DivingArmorItem) ITEMS.get(ID_DIVING_BOOTS)).setup();
 
         flagUniqueAugment(ITEMS.get("rs_control_augment"));
         flagUniqueAugment(ITEMS.get("side_config_augment"));
@@ -438,8 +434,8 @@ public class TCoreItems {
     }
     // endregion
 
-    public static final ArmorMaterialCoFH BEEKEEPER = new ArmorMaterialCoFH("thermal:beekeeper", 4, new int[]{1, 2, 3, 1}, 16, SoundEvents.ARMOR_EQUIP_ELYTRA, 0.0F, 0.0F, () -> Ingredient.of(ITEMS.get("beekeeper_fabric")));
-    public static final ArmorMaterialCoFH DIVING = new ArmorMaterialCoFH("thermal:diving", 12, new int[]{1, 4, 5, 2}, 20, SoundEvents.ARMOR_EQUIP_CHAIN, 0.0F, 0.0F, () -> Ingredient.of(ITEMS.get("diving_fabric")));
-    public static final ArmorMaterialCoFH HAZMAT = new ArmorMaterialCoFH("thermal:hazmat", 6, new int[]{1, 4, 5, 2}, 15, SoundEvents.ARMOR_EQUIP_LEATHER, 0.0F, 0.0F, () -> Ingredient.of(ITEMS.get("hazmat_fabric")));
+    public static final ArmorMaterialCoFH BEEKEEPER = new ArmorMaterialCoFH("thermal:beekeeper", 4, new int[]{1, 2, 3, 1}, 16, SoundEvents.ARMOR_EQUIP_ELYTRA.value(), 0.0F, 0.0F, () -> Ingredient.of(ITEMS.get("beekeeper_fabric")));
+    public static final ArmorMaterialCoFH DIVING = new ArmorMaterialCoFH("thermal:diving", 12, new int[]{1, 4, 5, 2}, 20, SoundEvents.ARMOR_EQUIP_CHAIN.value(), 0.0F, 0.0F, () -> Ingredient.of(ITEMS.get("diving_fabric")));
+    public static final ArmorMaterialCoFH HAZMAT = new ArmorMaterialCoFH("thermal:hazmat", 6, new int[]{1, 4, 5, 2}, 15, SoundEvents.ARMOR_EQUIP_LEATHER.value(), 0.0F, 0.0F, () -> Ingredient.of(ITEMS.get("hazmat_fabric")));
 
 }

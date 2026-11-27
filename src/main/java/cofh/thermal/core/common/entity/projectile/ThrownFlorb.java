@@ -1,10 +1,10 @@
 package cofh.thermal.core.common.entity.projectile;
 
 import cofh.core.util.helpers.FluidHelper;
+import cofh.lib.api.item.IFluidContainerItem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.EntityType;
@@ -17,12 +17,10 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
-import net.neoforged.neoforge.fluids.FluidActionResult;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.FluidUtil;
 
 import static cofh.lib.util.Constants.BUCKET_VOLUME;
-import static cofh.lib.util.constants.NBTTags.TAG_FLUID;
 import static cofh.thermal.core.ThermalCore.ITEMS;
 import static cofh.thermal.core.init.registries.TCoreEntities.THROWN_FLORB;
 import static cofh.thermal.lib.util.ThermalIDs.ID_FLORB;
@@ -82,7 +80,7 @@ public class ThrownFlorb extends ThrowableItemProjectile {
                 } else if (result instanceof EntityHitResult entityHitResult) {
                     hitPos = entityHitResult.getEntity().getOnPos();
                 }
-                FluidActionResult actionResult = FluidUtil.tryPlaceFluid(getOwner() instanceof Player player ? player : null, this.level, MAIN_HAND, hitPos.relative(hitDir), getItem(), new FluidStack(getFluid(getItem()), BUCKET_VOLUME));
+                FluidUtil.tryPlaceFluid(getOwner() instanceof Player player ? player : null, this.level, MAIN_HAND, hitPos.relative(hitDir), getItem(), fluid.copyWithAmount(BUCKET_VOLUME));
             }
             this.level.broadcastEntityEvent(this, (byte) 3);
             this.discard();
@@ -107,7 +105,7 @@ public class ThrownFlorb extends ThrowableItemProjectile {
     }
 
     @Override
-    protected float getGravity() {
+    protected double getDefaultGravity() {
 
         return gravity;
     }
@@ -115,11 +113,7 @@ public class ThrownFlorb extends ThrowableItemProjectile {
     // region HELPERS
     public static FluidStack getFluid(ItemStack container) {
 
-        CompoundTag tag = container.getOrCreateTag();
-        if (!tag.contains(TAG_FLUID)) {
-            return FluidStack.EMPTY;
-        }
-        return FluidStack.loadFluidStackFromNBT(tag.getCompound(TAG_FLUID));
+        return container.getItem() instanceof IFluidContainerItem fluidContainer ? fluidContainer.getFluid(container) : FluidStack.EMPTY;
     }
     // endregion
 }

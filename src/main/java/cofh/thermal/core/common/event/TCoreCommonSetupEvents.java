@@ -3,14 +3,13 @@ package cofh.thermal.core.common.event;
 import cofh.thermal.lib.util.ThermalRecipeManagers;
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
 import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.Mod;
-import net.neoforged.neoforge.client.event.RecipesUpdatedEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.AddReloadListenerEvent;
 import net.neoforged.neoforge.event.TagsUpdatedEvent;
 
 import static cofh.lib.util.constants.ModIds.ID_THERMAL;
 
-@Mod.EventBusSubscriber (modid = ID_THERMAL)
+@EventBusSubscriber (modid = ID_THERMAL)
 public class TCoreCommonSetupEvents {
 
     private TCoreCommonSetupEvents() {
@@ -38,16 +37,12 @@ public class TCoreCommonSetupEvents {
     @SubscribeEvent
     public static void tagsUpdated(final TagsUpdatedEvent event) {
 
-        ThermalRecipeManagers.instance().refreshServer();
-        ThermalRecipeManagers.instance().refreshClient();
+        var managers = ThermalRecipeManagers.instance();
+        switch (event.getUpdateCause()) {
+            case SERVER_DATA_LOAD -> managers.refreshServer(event.getRegistryAccess());
+            case CLIENT_PACKET_RECEIVED -> managers.refreshClient(event.getRegistryAccess());
+        }
     }
 
-    // Capture RecipeManager and reload when Recipes update on Client side - this is stupid but necessary since Mojang sends this and TagsUpdate in different orders at different times.
-    @SubscribeEvent
-    public static void recipesUpdated(final RecipesUpdatedEvent event) {
-
-        ThermalRecipeManagers.instance().setClientRecipeManager(event.getRecipeManager());
-        ThermalRecipeManagers.instance().refreshClient();
-    }
     // endregion
 }

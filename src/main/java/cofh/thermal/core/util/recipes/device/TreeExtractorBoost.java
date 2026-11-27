@@ -3,13 +3,13 @@ package cofh.thermal.core.util.recipes.device;
 import cofh.lib.util.recipes.SerializableRecipe;
 import cofh.thermal.core.util.managers.device.TreeExtractorManager;
 import com.mojang.serialization.Codec;
+import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeSerializer;
 import net.minecraft.world.item.crafting.RecipeType;
-
-import javax.annotation.Nullable;
 
 import static cofh.lib.util.recipes.RecipeJsonUtils.*;
 import static cofh.thermal.core.init.registries.TCoreRecipeSerializers.TREE_EXTRACTOR_BOOST_SERIALIZER;
@@ -61,7 +61,7 @@ public class TreeExtractorBoost extends SerializableRecipe {
     // region SERIALIZER
     public static class Serializer implements RecipeSerializer<TreeExtractorBoost> {
 
-        public static final Codec<TreeExtractorBoost> CODEC = RecordCodecBuilder.create(builder -> builder.group(
+        public static final MapCodec<TreeExtractorBoost> CODEC = RecordCodecBuilder.mapCodec(builder -> builder.group(
                         Ingredient.CODEC_NONEMPTY.fieldOf(INGREDIENT).forGetter(recipe -> recipe.ingredient),
                         Codec.FLOAT.optionalFieldOf(OUTPUT_MOD, 1.0F).forGetter(recipe -> recipe.outputMod),
                         Codec.INT.optionalFieldOf(CYCLES, TreeExtractorManager.instance().getDefaultEnergy()).forGetter(recipe -> recipe.cycles)
@@ -69,7 +69,7 @@ public class TreeExtractorBoost extends SerializableRecipe {
         );
 
         @Override
-        public Codec<TreeExtractorBoost> codec() {
+        public MapCodec<TreeExtractorBoost> codec() {
 
             return CODEC;
         }
@@ -95,11 +95,15 @@ public class TreeExtractorBoost extends SerializableRecipe {
         //            return new TreeExtractorBoost(recipeId, ingredient, outputMod, cycles);
         //        }
 
-        @Nullable
         @Override
-        public TreeExtractorBoost fromNetwork(FriendlyByteBuf buffer) {
+        public StreamCodec<RegistryFriendlyByteBuf, TreeExtractorBoost> streamCodec() {
 
-            Ingredient ingredient = Ingredient.fromNetwork(buffer);
+            return StreamCodec.of(this::toNetwork, this::fromNetwork);
+        }
+
+        private TreeExtractorBoost fromNetwork(RegistryFriendlyByteBuf buffer) {
+
+            Ingredient ingredient = Ingredient.CONTENTS_STREAM_CODEC.decode(buffer);
 
             float outputMod = buffer.readFloat();
             int cycles = buffer.readInt();
@@ -107,10 +111,9 @@ public class TreeExtractorBoost extends SerializableRecipe {
             return new TreeExtractorBoost(ingredient, outputMod, cycles);
         }
 
-        @Override
-        public void toNetwork(FriendlyByteBuf buffer, TreeExtractorBoost recipe) {
+        private void toNetwork(RegistryFriendlyByteBuf buffer, TreeExtractorBoost recipe) {
 
-            recipe.ingredient.toNetwork(buffer);
+            Ingredient.CONTENTS_STREAM_CODEC.encode(buffer, recipe.ingredient);
 
             buffer.writeFloat(recipe.outputMod);
             buffer.writeInt(recipe.cycles);

@@ -1,7 +1,9 @@
 package cofh.thermal.core.common.item;
 
 import cofh.thermal.lib.common.item.BlockItemAugmentable;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 
@@ -25,13 +27,13 @@ public class ItemCellBlockItem extends BlockItemAugmentable {
 
     protected void setAttributesFromAugment(ItemStack container, CompoundTag augmentData) {
 
-        CompoundTag subTag = container.getTagElement(TAG_PROPERTIES);
-        if (subTag == null) {
-            return;
-        }
-        setAttributeFromAugmentMax(subTag, augmentData, TAG_AUGMENT_BASE_MOD);
-        setAttributeFromAugmentMax(subTag, augmentData, TAG_AUGMENT_ITEM_STORAGE);
-        setAttributeFromAugmentMax(subTag, augmentData, TAG_AUGMENT_ITEM_CREATIVE);
+        CustomData.update(DataComponents.CUSTOM_DATA, container, data -> {
+            CompoundTag subTag = data.getCompound(TAG_PROPERTIES);
+            setAttributeFromAugmentMax(subTag, augmentData, TAG_AUGMENT_BASE_MOD);
+            setAttributeFromAugmentMax(subTag, augmentData, TAG_AUGMENT_ITEM_STORAGE);
+            setAttributeFromAugmentMax(subTag, augmentData, TAG_AUGMENT_ITEM_CREATIVE);
+            data.put(TAG_PROPERTIES, subTag);
+        });
     }
 
     //    @Override
@@ -113,7 +115,7 @@ public class ItemCellBlockItem extends BlockItemAugmentable {
     //    @Override
     //    public void updateAugmentState(ItemStack container, List<ItemStack> augments) {
     //
-    //        container.getOrCreateTag().put(TAG_PROPERTIES, new CompoundTag());
+    //        CustomData.update(DataComponents.CUSTOM_DATA, container, data -> data.put(TAG_PROPERTIES, new CompoundTag()));
     //        for (ItemStack augment : augments) {
     //            CompoundTag augmentData = AugmentDataHelper.getAugmentData(augment);
     //            if (augmentData == null) {

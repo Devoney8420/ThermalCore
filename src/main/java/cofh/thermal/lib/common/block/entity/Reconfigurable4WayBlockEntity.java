@@ -11,12 +11,13 @@ import cofh.lib.common.inventory.ItemStorageCoFH;
 import cofh.thermal.lib.util.recipes.IThermalInventory;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.Connection;
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.enchantment.ItemEnchantments;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -28,7 +29,6 @@ import net.neoforged.neoforge.items.IItemHandler;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.List;
-import java.util.Map;
 
 import static cofh.core.client.renderer.model.ModelUtils.FLUID;
 import static cofh.core.client.renderer.model.ModelUtils.SIDES;
@@ -219,9 +219,9 @@ public abstract class Reconfigurable4WayBlockEntity extends AugmentableBlockEnti
 
     // region NETWORK
     @Override
-    public void onDataPacket(Connection net, ClientboundBlockEntityDataPacket pkt) {
+    public void onDataPacket(Connection net, ClientboundBlockEntityDataPacket pkt, HolderLookup.Provider registries) {
 
-        super.onDataPacket(net, pkt);
+        super.onDataPacket(net, pkt, registries);
 
         if (level != null) {
             level.getModelDataManager().requestRefresh(this);
@@ -230,7 +230,7 @@ public abstract class Reconfigurable4WayBlockEntity extends AugmentableBlockEnti
 
     // CONTROL
     @Override
-    public FriendlyByteBuf getControlPacket(FriendlyByteBuf buffer) {
+    public RegistryFriendlyByteBuf getControlPacket(RegistryFriendlyByteBuf buffer) {
 
         super.getControlPacket(buffer);
 
@@ -241,7 +241,7 @@ public abstract class Reconfigurable4WayBlockEntity extends AugmentableBlockEnti
     }
 
     @Override
-    public void handleControlPacket(FriendlyByteBuf buffer) {
+    public void handleControlPacket(RegistryFriendlyByteBuf buffer) {
 
         super.handleControlPacket(buffer);
 
@@ -255,7 +255,7 @@ public abstract class Reconfigurable4WayBlockEntity extends AugmentableBlockEnti
 
     // STATE
     @Override
-    public void handleStatePacket(FriendlyByteBuf buffer) {
+    public void handleStatePacket(RegistryFriendlyByteBuf buffer) {
 
         super.handleStatePacket(buffer);
 
@@ -267,9 +267,9 @@ public abstract class Reconfigurable4WayBlockEntity extends AugmentableBlockEnti
 
     // region NBT
     @Override
-    public void load(CompoundTag nbt) {
+    protected void loadAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
 
-        super.load(nbt);
+        super.loadAdditional(nbt, registries);
 
         reconfigControl.setFacing(Direction.from3DDataValue(nbt.getByte(TAG_FACING)));
         reconfigControl.read(nbt);
@@ -282,9 +282,9 @@ public abstract class Reconfigurable4WayBlockEntity extends AugmentableBlockEnti
     }
 
     @Override
-    public void saveAdditional(CompoundTag nbt) {
+    protected void saveAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
 
-        super.saveAdditional(nbt);
+        super.saveAdditional(nbt, registries);
 
         nbt.putByte(TAG_FACING, (byte) reconfigControl.getFacing().get3DDataValue());
         reconfigControl.write(nbt);
@@ -315,9 +315,9 @@ public abstract class Reconfigurable4WayBlockEntity extends AugmentableBlockEnti
     }
 
     @Override
-    protected void finalizeAttributes(Map<Enchantment, Integer> enchantmentMap) {
+    protected void finalizeAttributes(ItemEnchantments enchantments) {
 
-        super.finalizeAttributes(enchantmentMap);
+        super.finalizeAttributes(enchantments);
 
         if (!reconfigControlFeature) {
             transferControl.disable();

@@ -4,11 +4,13 @@ import cofh.thermal.core.ThermalCore;
 import cofh.thermal.core.util.recipes.dynamo.DisenchantmentFuel;
 import cofh.thermal.lib.util.managers.SingleItemFuelManager;
 import cofh.thermal.lib.util.recipes.internal.IDynamoFuel;
-import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.Holder;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.EnchantedBookItem;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.crafting.Ingredient;
+import net.neoforged.neoforge.common.crafting.DataComponentIngredient;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeManager;
 import net.minecraft.world.item.enchantment.Enchantment;
@@ -18,9 +20,7 @@ import net.neoforged.neoforge.capabilities.Capabilities;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
-import static cofh.lib.util.Utils.getName;
 import static cofh.lib.util.Utils.getRegistryName;
 import static cofh.lib.util.constants.ModIds.ID_THERMAL;
 import static cofh.thermal.core.init.registries.TCoreRecipeTypes.DISENCHANTMENT_FUEL;
@@ -68,16 +68,14 @@ public class DisenchantmentFuelManager extends SingleItemFuelManager {
         if (stack.isEmpty()) {
             return 0;
         }
-        Map<Enchantment, Integer> enchants = EnchantmentHelper.getEnchantments(stack);
-        int energy = 0;
-
-        for (Enchantment enchant : enchants.keySet()) {
-            energy += enchant.getMinCost(enchants.get(enchant));
+        var enchantments = EnchantmentHelper.getEnchantmentsForCrafting(stack);
+        long energy = 0;
+        int count = 0;
+        for (var entry : enchantments.entrySet()) {
+            energy += entry.getKey().value().getMinCost(entry.getIntValue());
+            energy += ++count;
         }
-        energy += (enchants.size() * (enchants.size() + 1)) / 2;
-        energy *= (DEFAULT_ENERGY / 2);
-
-        return energy;
+        return Math.clamp(energy * (DEFAULT_ENERGY / 2), 0, Integer.MAX_VALUE);
     }
 
     // region IManager
@@ -85,42 +83,49 @@ public class DisenchantmentFuelManager extends SingleItemFuelManager {
     public void refresh(RecipeManager recipeManager) {
 
         clear();
-        var recipes = recipeManager.byType(DISENCHANTMENT_FUEL.get());
-        for (var entry : recipes.entrySet()) {
-            addFuel(entry.getValue().value());
+        convertedFuels = List.of();
+        for (var entry : recipeManager.getAllRecipesFor(DISENCHANTMENT_FUEL.get())) {
+            addFuel(entry.value());
         }
-        createConvertedRecipes(recipeManager);
+    }
+
+    @Override
+    public void refresh(RecipeManager recipeManager, HolderLookup.Provider registries) {
+
+        refresh(recipeManager);
+        registries.lookup(Registries.ENCHANTMENT).ifPresent(this::createConvertedRecipes);
     }
     // endregion
 
     // region CONVERSION
-    protected List<RecipeHolder<DisenchantmentFuel>> convertedFuels = new ArrayList<>();
+    protected volatile List<RecipeHolder<DisenchantmentFuel>> convertedFuels = List.of();
 
     public List<RecipeHolder<DisenchantmentFuel>> getConvertedFuels() {
 
         return convertedFuels;
     }
 
-    protected void createConvertedRecipes(RecipeManager recipeManager) {
+    protected void createConvertedRecipes(HolderLookup.RegistryLookup<Enchantment> registry) {
 
-        List<ItemStack> books = new ArrayList<>();
-        for (Enchantment enchant : BuiltInRegistries.ENCHANTMENT) {
-            books.add(EnchantedBookItem.createForEnchantment(new EnchantmentInstance(enchant, enchant.getMaxLevel())));
-        }
-        for (ItemStack book : books) {
+        List<RecipeHolder<DisenchantmentFuel>> generated = new ArrayList<>();
+        registry.listElements().forEach(enchantment -> {
+            var book = EnchantedBookItem.createForEnchantment(new EnchantmentInstance(enchantment, enchantment.value().getMaxLevel()));
             try {
                 if (getFuel(book) == null && validFuel(book)) {
-                    convertedFuels.add(convert(book, getEnergy(book)));
+                    generated.add(convert(book, enchantment, getEnergy(book)));
                 }
-            } catch (Exception e) { // pokemon!
-                ThermalCore.LOG.error(getRegistryName(book.getItem()) + " threw an exception when querying the fuel value as the mod author is doing non-standard things in their item code (possibly tag related). It may not display in JEI but should function as fuel.");
+            } catch (Exception e) {
+                ThermalCore.LOG.error("Could not preview disenchantment fuel for {} on {}", enchantment.key().location(), getRegistryName(book.getItem()), e);
             }
-        }
+        });
+        convertedFuels = List.copyOf(generated);
     }
 
-    protected RecipeHolder<DisenchantmentFuel> convert(ItemStack item, int energy) {
+    protected RecipeHolder<DisenchantmentFuel> convert(ItemStack item, Holder.Reference<Enchantment> enchantment, int energy) {
 
-        return new RecipeHolder<>(new ResourceLocation(ID_THERMAL, "disenchantment_" + getName(item)), new DisenchantmentFuel(energy, singletonList(Ingredient.of(item)), emptyList()));
+        ResourceLocation id = ResourceLocation.fromNamespaceAndPath(ID_THERMAL,
+                "disenchantment/" + enchantment.key().location().getNamespace() + "/" + enchantment.key().location().getPath());
+        return new RecipeHolder<>(id, new DisenchantmentFuel(energy, singletonList(DataComponentIngredient.of(true, item)), emptyList()));
     }
     // endregion
 }

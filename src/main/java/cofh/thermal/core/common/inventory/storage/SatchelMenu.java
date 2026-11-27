@@ -50,7 +50,7 @@ public class SatchelMenu extends ContainerMenuCoFH implements ISecurable {
         containerItem = (IInventoryContainerItem) containerStack.getItem();
 
         numSlots = MathHelper.clamp(containerItem.getContainerSlots(containerStack), 0, MAX_SLOTS);
-        itemInventory = containerItem.getContainerInventory(containerStack);
+        itemInventory = containerItem.getContainerInventory(containerStack, player.registryAccess());
         invWrapper = new InvWrapperCoFH(itemInventory, numSlots);
 
         rows = MathHelper.clamp(numSlots / 9, 0, MAX_ROWS);
@@ -128,7 +128,9 @@ public class SatchelMenu extends ContainerMenuCoFH implements ISecurable {
     @Override
     public void removed(Player playerIn) {
 
-        itemInventory.write(containerItem.getOrCreateInvTag(containerStack));
+        if (!playerIn.level().isClientSide()) {
+            containerItem.saveContainerInventory(containerStack, playerIn.registryAccess(), itemInventory);
+        }
         containerItem.onContainerInventoryChanged(containerStack);
         super.removed(playerIn);
     }

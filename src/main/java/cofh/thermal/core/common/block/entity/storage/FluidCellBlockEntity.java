@@ -4,6 +4,7 @@ import cofh.core.common.network.packet.client.TileStatePacket;
 import cofh.core.util.helpers.AugmentDataHelper;
 import cofh.core.util.helpers.FluidHelper;
 import cofh.lib.api.block.entity.ITickableTile;
+import cofh.lib.api.item.IFluidContainerItem;
 import cofh.lib.common.fluid.FluidHandlerRestrictionWrapper;
 import cofh.lib.common.fluid.FluidStorageCoFH;
 import cofh.lib.common.fluid.FluidStorageRestrictable;
@@ -13,12 +14,16 @@ import cofh.thermal.core.common.inventory.storage.FluidCellMenu;
 import cofh.thermal.lib.common.block.entity.StorageCellBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.BlockHitResult;
 import net.neoforged.neoforge.client.model.data.ModelData;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
@@ -30,6 +35,7 @@ import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
 import static cofh.core.client.renderer.model.ModelUtils.*;
+import static cofh.core.init.CoreDataComponents.CONTAINER_FLUID;
 import static cofh.core.util.helpers.FluidHelper.getFluidHandlerCap;
 import static cofh.lib.api.StorageGroup.ACCESSIBLE;
 import static cofh.lib.util.Constants.BUCKET_VOLUME;
@@ -82,6 +88,17 @@ public class FluidCellBlockEntity extends StorageCellBlockEntity implements ITic
         if (Utils.timeCheck() || fluidStorage.getFluidStack().getFluid() != renderFluid.getFluid()) {
             updateTrackers(true);
         }
+    }
+
+    @Override
+    protected boolean interactWithFluidContainer(Level world, BlockPos pos, BlockState state, Player player, InteractionHand hand, BlockHitResult hit) {
+
+        // Manual transfers use the tank directly, independent of automation side settings.
+        if (FluidHelper.interactWithHandler(player.getItemInHand(hand), fluidStorage, player, hand)) {
+            setChanged();
+            return true;
+        }
+        return false;
     }
 
     @Override
@@ -146,15 +163,31 @@ public class FluidCellBlockEntity extends StorageCellBlockEntity implements ITic
         if (adjTile != null) {
             var handler = getFluidHandlerCap(adjTile, side.getOpposite());
             if (handler != null) {
-                fluidStorage.modify(-handler.fill(new FluidStack(fluidStorage.getFluidStack(), Math.min(amountOutput, fluidStorage.getAmount())), EXECUTE));
+                fluidStorage.modify(-handler.fill(fluidStorage.getFluidStack().copyWithAmount(Math.min(amountOutput, fluidStorage.getAmount())), EXECUTE));
             }
         }
     }
 
     @Override
-    protected boolean keepFluids() {
+    public ItemStack createItemStackTag(ItemStack stack) {
 
-        return true;
+        ItemStack drop = super.createItemStackTag(stack);
+        if (drop.getItem() instanceof IFluidContainerItem item) {
+            item.setFluid(drop, fluidStorage.getFluidStack());
+        }
+        return drop;
+    }
+
+    @Override
+    public void onPlacedBy(Level world, BlockPos pos, BlockState state, @Nullable LivingEntity placer, ItemStack stack) {
+
+        super.onPlacedBy(world, pos, state, placer, stack);
+        var fluid = stack.get(CONTAINER_FLUID);
+        if (fluid != null) {
+            fluidStorage.setFluidStack(fluid.copy());
+            updateTrackers(true);
+            setChanged();
+        }
     }
 
     @Override
@@ -191,7 +224,7 @@ public class FluidCellBlockEntity extends StorageCellBlockEntity implements ITic
     @Override
     protected void updateTrackers(boolean send) {
 
-        renderFluid = new FluidStack(fluidStorage.getFluidStack(), BUCKET_VOLUME);
+        renderFluid = fluidStorage.getFluidStack().copyWithAmount(BUCKET_VOLUME);
 
         int curScale = fluidStorage.getAmount() > 0 ? 1 + (int) (fluidStorage.getRatio() * 14) : 0;
         if (curScale != compareTracker) {

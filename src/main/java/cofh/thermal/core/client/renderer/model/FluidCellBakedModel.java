@@ -17,12 +17,13 @@ import net.minecraft.client.renderer.block.model.ItemOverrides;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.core.Direction;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.client.model.IDynamicBakedModel;
 import net.neoforged.neoforge.client.model.data.ModelData;
@@ -40,7 +41,6 @@ import static cofh.lib.util.constants.NBTTags.*;
 import static cofh.thermal.core.client.ThermalTextures.*;
 import static cofh.thermal.lib.util.Constants.DEFAULT_CELL_SIDES_RAW;
 import static net.minecraft.core.Direction.*;
-import static net.minecraft.nbt.Tag.TAG_COMPOUND;
 
 public class FluidCellBakedModel extends UnderlayBakedModel implements IDynamicBakedModel {
 
@@ -129,13 +129,14 @@ public class FluidCellBakedModel extends UnderlayBakedModel implements IDynamicB
         @Override
         public BakedModel resolve(BakedModel model, ItemStack stack, @Nullable ClientLevel worldIn, @Nullable LivingEntity entityIn, int seed) {
 
-            CompoundTag tag = stack.getTagElement(TAG_BLOCK_ENTITY);
+            CustomData data = stack.get(DataComponents.BLOCK_ENTITY_DATA);
+            CompoundTag tag = data == null ? null : data.copyTag();
             byte[] sideConfigRaw = getSideConfigRaw(tag);
             int itemHash = new ComparableItemStack(stack).hashCode();
             int level = getLevel(stack);
             int configHash = Arrays.hashCode(sideConfigRaw);
 
-            FluidStack fluid = getFluid(tag);
+            FluidStack fluid = stack.getItem() instanceof IFluidContainerItem item ? item.getFluid(stack) : FluidStack.EMPTY;
             int fluidHash = fluid.isEmpty() ? 0 : FluidHelper.fluidHashcode(fluid);
 
             BakedModel ret = MODEL_CACHE.get(Arrays.asList(itemHash, level, configHash, fluidHash));
@@ -218,18 +219,6 @@ public class FluidCellBakedModel extends UnderlayBakedModel implements IDynamicB
             return level >= 10 ? FLUID_CELL_LEVEL_0_C : FLUID_CELL_LEVEL_8_C;
         }
         return FLUID_CELL_LEVELS[MathHelper.clamp(level, 0, 8)];
-    }
-
-    private FluidStack getFluid(CompoundTag tag) {
-
-        if (tag == null) {
-            return FluidStack.EMPTY;
-        }
-        ListTag tanks = tag.getList(TAG_TANK_INV, TAG_COMPOUND);
-        if (tanks.isEmpty()) {
-            return FluidStack.EMPTY;
-        }
-        return FluidStack.loadFluidStackFromNBT(tanks.getCompound(0));
     }
 
     private byte[] getSideConfigRaw(CompoundTag tag) {

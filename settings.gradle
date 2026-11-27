@@ -16,3 +16,12 @@ pluginManagement {
         maven { url 'https://maven.parchmentmc.org/' }
     }
 }
+
+rootProject.name = 'ThermalCore'
+
+def localCoFHCore = providers.gradleProperty('cofhCoreDir').getOrElse('../CoFHCore')
+includeBuild(localCoFHCore) {
+    dependencySubstitution {
+        substitute module('com.teamcofh:cofh_core') using project(':')
+    }
+}

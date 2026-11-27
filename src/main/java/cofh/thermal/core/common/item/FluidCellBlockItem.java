@@ -3,20 +3,21 @@ package cofh.thermal.core.common.item;
 import cofh.core.util.helpers.AugmentDataHelper;
 import cofh.core.util.helpers.FluidHelper;
 import cofh.lib.api.item.IFluidContainerItem;
-import cofh.lib.common.fluid.FluidStorageCoFH;
+import cofh.lib.util.helpers.StackData;
 import cofh.lib.util.helpers.StringHelper;
 import cofh.thermal.core.common.block.entity.storage.FluidCellBlockEntity;
 import cofh.thermal.lib.common.item.BlockItemAugmentable;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.neoforged.neoforge.fluids.FluidStack;
-import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
 
 import javax.annotation.Nullable;
 import java.util.List;
@@ -28,7 +29,6 @@ import static cofh.lib.api.ContainerType.FLUID;
 import static cofh.lib.util.constants.NBTTags.*;
 import static cofh.lib.util.helpers.StringHelper.*;
 import static net.minecraft.nbt.Tag.TAG_COMPOUND;
-import static net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction.EXECUTE;
 
 public class FluidCellBlockItem extends BlockItemAugmentable implements IFluidContainerItem {
 
@@ -57,107 +57,58 @@ public class FluidCellBlockItem extends BlockItemAugmentable implements IFluidCo
         }
     }
 
-    protected void setAttributesFromAugment(ItemStack container, CompoundTag augmentData) {
+    private void setAttributesFromAugment(CompoundTag properties, CompoundTag augmentData) {
 
-        CompoundTag subTag = container.getTagElement(TAG_PROPERTIES);
-        if (subTag == null) {
-            return;
-        }
-        setAttributeFromAugmentMax(subTag, augmentData, TAG_AUGMENT_BASE_MOD);
-        setAttributeFromAugmentMax(subTag, augmentData, TAG_AUGMENT_FLUID_STORAGE);
-        setAttributeFromAugmentMax(subTag, augmentData, TAG_AUGMENT_FLUID_CREATIVE);
-    }
-
-    //    @Override
-    //    public ICapabilityProvider initCapabilities(ItemStack stack, @Nullable CompoundTag nbt) {
-    //
-    //        return new FluidContainerItemWrapper(stack, this);
-    //    }
-
-    // region IFluidContainerItem
-    @Override
-    public CompoundTag getOrCreateTankTag(ItemStack container) {
-
-        CompoundTag blockTag = container.getOrCreateTagElement(TAG_BLOCK_ENTITY);
-        ListTag tanks = blockTag.getList(TAG_TANK_INV, TAG_COMPOUND);
-        if (tanks.isEmpty()) {
-            CompoundTag tag = new CompoundTag();
-            tag.putByte(TAG_TANK, (byte) 0);
-            new FluidStorageCoFH(FluidCellBlockEntity.BASE_CAPACITY).write(tag);
-            tanks.add(tag);
-            blockTag.put(TAG_TANK_INV, tanks);
-        }
-        return tanks.getCompound(0);
+        setAttributeFromAugmentMax(properties, augmentData, TAG_AUGMENT_BASE_MOD);
+        setAttributeFromAugmentMax(properties, augmentData, TAG_AUGMENT_FLUID_STORAGE);
+        setAttributeFromAugmentMax(properties, augmentData, TAG_AUGMENT_FLUID_CREATIVE);
     }
 
     @Override
     public FluidStack getFluid(ItemStack container) {
 
-        CompoundTag tag = getOrCreateTankTag(container);
-        return FluidStack.loadFluidStackFromNBT(tag);
+        FluidStack stored = IFluidContainerItem.super.getFluid(container);
+        if (!stored.isEmpty()) {
+            return stored;
+        }
+        CompoundTag blockData = container.getOrDefault(DataComponents.BLOCK_ENTITY_DATA, CustomData.EMPTY).copyTag();
+        ListTag tanks = blockData.getList(TAG_TANK_INV, TAG_COMPOUND);
+        return tanks.isEmpty() ? FluidStack.EMPTY : StackData.readFluid(StackData.builtInRegistries(), tanks.getCompound(0));
+    }
+
+    @Override
+    public void setFluid(ItemStack container, FluidStack fluid) {
+
+        IFluidContainerItem.super.setFluid(container, fluid);
+        CustomData blockData = container.get(DataComponents.BLOCK_ENTITY_DATA);
+        if (blockData != null && blockData.contains(TAG_TANK_INV)) {
+            CustomData.update(DataComponents.BLOCK_ENTITY_DATA, container, tag -> tag.remove(TAG_TANK_INV));
+        }
     }
 
     @Override
     public int getCapacity(ItemStack container) {
 
-        CompoundTag tag = getOrCreateTankTag(container);
-        if (tag == null) {
-            return 0;
-        }
         float base = getPropertyWithDefault(container, TAG_AUGMENT_BASE_MOD, 1.0F);
         float mod = getPropertyWithDefault(container, TAG_AUGMENT_FLUID_STORAGE, 1.0F);
-        return getMaxStored(container, Math.round(tag.getInt(TAG_CAPACITY) * mod * base));
+        return getMaxStored(container, Math.round(FluidCellBlockEntity.BASE_CAPACITY * mod * base));
     }
-
-    @Override
-    public int fill(ItemStack container, FluidStack resource, FluidAction action) {
-
-        CompoundTag containerTag = getOrCreateTankTag(container);
-        if (resource.isEmpty() || !isFluidValid(container, resource)) {
-            return 0;
-        }
-        FluidStorageCoFH tank = new FluidStorageCoFH(FluidCellBlockEntity.BASE_CAPACITY).setCapacity(getCapacity(container)).read(containerTag);
-        if (isCreative(container, FLUID)) {
-            if (action.execute()) {
-                tank.setFluidStack(new FluidStack(resource, tank.getCapacity()));
-                tank.write(containerTag);
-            }
-            return resource.getAmount();
-        }
-        int ret = tank.fill(resource, action);
-        tank.write(containerTag);
-        return ret;
-    }
-
-    @Override
-    public FluidStack drain(ItemStack container, int maxDrain, FluidAction action) {
-
-        CompoundTag containerTag = getOrCreateTankTag(container);
-        FluidStorageCoFH tank = new FluidStorageCoFH(FluidCellBlockEntity.BASE_CAPACITY).setCapacity(getCapacity(container)).read(containerTag);
-        if (isCreative(container, FLUID)) {
-            return new FluidStack(tank.getFluidStack(), maxDrain);
-        }
-        FluidStack ret = tank.drain(maxDrain, action);
-        tank.write(containerTag);
-        return ret;
-    }
-    // endregion
-
     // region IAugmentableItem
     @Override
     public void updateAugmentState(ItemStack container, List<ItemStack> augments) {
 
-        container.getOrCreateTag().put(TAG_PROPERTIES, new CompoundTag());
+        CompoundTag properties = new CompoundTag();
         for (ItemStack augment : augments) {
             CompoundTag augmentData = AugmentDataHelper.getAugmentData(augment);
             if (augmentData == null) {
                 continue;
             }
-            setAttributesFromAugment(container, augmentData);
+            setAttributesFromAugment(properties, augmentData);
         }
-        int fluidExcess = getFluidAmount(container) - getCapacity(container);
-        if (fluidExcess > 0) {
-            drain(container, fluidExcess, EXECUTE);
+        CustomData.update(DataComponents.CUSTOM_DATA, container, tag -> tag.put(TAG_PROPERTIES, properties));
+        FluidStack stored = getFluid(container);
+        if (stored.getAmount() > getCapacity(container)) {
+            setFluid(container, stored.copyWithAmount(getCapacity(container)));
         }
     }
     // endregion

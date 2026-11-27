@@ -1,5 +1,6 @@
 package cofh.thermal.core.common.item;
 
+import cofh.core.common.block.SoilBlock;
 import cofh.core.common.item.ItemCoFH;
 import cofh.lib.util.Utils;
 import net.minecraft.core.BlockPos;
@@ -16,14 +17,12 @@ import net.minecraft.tags.BlockTags;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.AreaEffectCloud;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.*;
 import net.minecraft.world.level.block.state.BlockState;
-import net.neoforged.neoforge.common.IPlantable;
 import net.neoforged.neoforge.event.EventHooks;
 
 import javax.annotation.Nullable;
@@ -65,12 +64,9 @@ public class FertilizerItem extends ItemCoFH {
 
         ItemStack stack = context.getItemInHand();
         BlockState state = world.getBlockState(pos);
-        Player player = context.getPlayer();
-        if (player != null) {
-            int hook = EventHooks.onApplyBonemeal(player, world, pos, state, stack);
-            if (hook != 0) {
-                return hook > 0;
-            }
+        var event = EventHooks.fireBonemealEvent(context.getPlayer(), world, pos, state, stack);
+        if (event.isCanceled()) {
+            return event.isSuccessful();
         }
         boolean used;
         used = growPlant(world, pos, state, strength);
@@ -166,7 +162,7 @@ public class FertilizerItem extends ItemCoFH {
 
     protected static void makeAreaOfEffectCloud(Level world, BlockPos pos, int radius) {
 
-        boolean isPlant = world.getBlockState(pos).getBlock() instanceof IPlantable;
+        boolean isPlant = SoilBlock.isPlant(world.getBlockState(pos));
         AreaEffectCloud cloud = new AreaEffectCloud(world, pos.getX() + 0.5D, pos.getY() + (isPlant ? 0.0D : 1.0D), pos.getZ() + 0.5D);
         cloud.setRadius(1);
         cloud.setParticle(ParticleTypes.HAPPY_VILLAGER);
@@ -187,6 +183,11 @@ public class FertilizerItem extends ItemCoFH {
             Level level = source.level();
             BlockPos pos = source.pos().relative(source.state().getValue(DispenserBlock.FACING));
             BlockState state = level.getBlockState(pos);
+            var event = EventHooks.fireBonemealEvent(null, level, pos, state, stack);
+            if (event.isCanceled()) {
+                setSuccess(event.isSuccessful());
+                return stack;
+            }
             boolean used = growPlant(level, pos, state, fertilizerItem.strength) || growWaterPlant(level, pos, null);
             this.setSuccess(used);
             if (used) {

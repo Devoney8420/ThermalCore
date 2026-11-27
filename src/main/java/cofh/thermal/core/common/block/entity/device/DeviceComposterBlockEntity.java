@@ -12,8 +12,9 @@ import cofh.thermal.lib.common.block.entity.DeviceBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
@@ -157,7 +158,7 @@ public class DeviceComposterBlockEntity extends DeviceBlockEntity implements ITi
 
     // region NETWORK
     @Override
-    public FriendlyByteBuf getGuiPacket(FriendlyByteBuf buffer) {
+    public RegistryFriendlyByteBuf getGuiPacket(RegistryFriendlyByteBuf buffer) {
 
         super.getGuiPacket(buffer);
 
@@ -169,7 +170,7 @@ public class DeviceComposterBlockEntity extends DeviceBlockEntity implements ITi
     }
 
     @Override
-    public void handleGuiPacket(FriendlyByteBuf buffer) {
+    public void handleGuiPacket(RegistryFriendlyByteBuf buffer) {
 
         super.handleGuiPacket(buffer);
 
@@ -181,9 +182,9 @@ public class DeviceComposterBlockEntity extends DeviceBlockEntity implements ITi
 
     // region NBT
     @Override
-    public void load(CompoundTag nbt) {
+    protected void loadAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
 
-        super.load(nbt);
+        super.loadAdditional(nbt, registries);
 
         process = nbt.getInt(TAG_PROCESS);
         processMax = nbt.getInt(TAG_PROCESS_MAX);
@@ -193,9 +194,9 @@ public class DeviceComposterBlockEntity extends DeviceBlockEntity implements ITi
     }
 
     @Override
-    public void saveAdditional(CompoundTag nbt) {
+    protected void saveAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
 
-        super.saveAdditional(nbt);
+        super.saveAdditional(nbt, registries);
 
         nbt.putInt(TAG_PROCESS, process);
         nbt.putInt(TAG_PROCESS_MAX, processMax);

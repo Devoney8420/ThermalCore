@@ -16,10 +16,11 @@ import cofh.thermal.lib.util.recipes.MachineProperties;
 import cofh.thermal.lib.util.recipes.internal.IMachineRecipe;
 import cofh.thermal.lib.util.recipes.internal.IRecipeCatalyst;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.enchantment.ItemEnchantments;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.capabilities.Capabilities;
@@ -27,7 +28,6 @@ import net.neoforged.neoforge.fluids.FluidStack;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
@@ -465,7 +465,7 @@ public abstract class MachineBlockEntity extends Reconfigurable4WayBlockEntity i
 
     // region NETWORK
     @Override
-    public FriendlyByteBuf getGuiPacket(FriendlyByteBuf buffer) {
+    public RegistryFriendlyByteBuf getGuiPacket(RegistryFriendlyByteBuf buffer) {
 
         super.getGuiPacket(buffer);
 
@@ -477,7 +477,7 @@ public abstract class MachineBlockEntity extends Reconfigurable4WayBlockEntity i
     }
 
     @Override
-    public void handleGuiPacket(FriendlyByteBuf buffer) {
+    public void handleGuiPacket(RegistryFriendlyByteBuf buffer) {
 
         super.handleGuiPacket(buffer);
 
@@ -489,9 +489,9 @@ public abstract class MachineBlockEntity extends Reconfigurable4WayBlockEntity i
 
     // region NBT
     @Override
-    public void load(CompoundTag nbt) {
+    protected void loadAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
 
-        super.load(nbt);
+        super.loadAdditional(nbt, registries);
 
         wasActive = nbt.getBoolean(TAG_ACTIVE_PREV);
 
@@ -501,9 +501,9 @@ public abstract class MachineBlockEntity extends Reconfigurable4WayBlockEntity i
     }
 
     @Override
-    public void saveAdditional(CompoundTag nbt) {
+    protected void saveAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
 
-        super.saveAdditional(nbt);
+        super.saveAdditional(nbt, registries);
 
         nbt.putBoolean(TAG_ACTIVE_PREV, wasActive);
 
@@ -551,9 +551,9 @@ public abstract class MachineBlockEntity extends Reconfigurable4WayBlockEntity i
     }
 
     @Override
-    protected void finalizeAttributes(Map<Enchantment, Integer> enchantmentMap) {
+    protected void finalizeAttributes(ItemEnchantments enchantments) {
 
-        super.finalizeAttributes(enchantmentMap);
+        super.finalizeAttributes(enchantments);
         float baseMod = getAttributeModWithDefault(augmentNBT, TAG_AUGMENT_BASE_MOD, 1.0F);
         float powerMod = getAttributeModWithDefault(augmentNBT, TAG_AUGMENT_MACHINE_POWER, 1.0F);
         float speedMod = getAttributeModWithDefault(augmentNBT, TAG_AUGMENT_MACHINE_SPEED, 1.0F);

@@ -3,8 +3,10 @@ package cofh.thermal.lib.common.item;
 import cofh.core.common.item.IAugmentableItem;
 import cofh.core.common.item.InventoryContainerItem;
 import cofh.core.util.helpers.AugmentDataHelper;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.CustomData;
 
 import java.util.List;
 import java.util.function.BiPredicate;
@@ -47,12 +49,8 @@ public class InventoryContainerItemAugmentable extends InventoryContainerItem im
         return getPropertyWithDefault(stack, TAG_AUGMENT_BASE_MOD, 1.0F);
     }
 
-    protected void setAttributesFromAugment(ItemStack container, CompoundTag augmentData) {
+    protected void setAttributesFromAugment(CompoundTag subTag, CompoundTag augmentData) {
 
-        CompoundTag subTag = container.getTagElement(TAG_PROPERTIES);
-        if (subTag == null) {
-            return;
-        }
         setAttributeFromAugmentMax(subTag, augmentData, TAG_AUGMENT_BASE_MOD);
         setAttributeFromAugmentMax(subTag, augmentData, TAG_AUGMENT_ITEM_STORAGE);
         setAttributeFromAugmentMax(subTag, augmentData, TAG_AUGMENT_ITEM_CREATIVE);
@@ -84,14 +82,16 @@ public class InventoryContainerItemAugmentable extends InventoryContainerItem im
     @Override
     public void updateAugmentState(ItemStack container, List<ItemStack> augments) {
 
-        container.getOrCreateTag().put(TAG_PROPERTIES, new CompoundTag());
+        CompoundTag properties = new CompoundTag();
         for (ItemStack augment : augments) {
             CompoundTag augmentData = AugmentDataHelper.getAugmentData(augment);
             if (augmentData == null) {
                 continue;
             }
-            setAttributesFromAugment(container, augmentData);
+            setAttributesFromAugment(properties, augmentData);
         }
+        CustomData.update(DataComponents.CUSTOM_DATA, container, nbt -> nbt.put(TAG_PROPERTIES, properties));
+        onContainerInventoryChanged(container);
     }
     // endregion
 }

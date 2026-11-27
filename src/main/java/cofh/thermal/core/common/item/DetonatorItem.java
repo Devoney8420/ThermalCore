@@ -7,9 +7,9 @@ import cofh.lib.api.ITNTFactory;
 import cofh.lib.util.Utils;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.NbtUtils;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
@@ -21,6 +21,7 @@ import net.minecraft.world.entity.item.PrimedTnt;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
@@ -33,6 +34,7 @@ import java.util.Map;
 import static cofh.lib.util.constants.NBTTags.TAG_PRIMED;
 import static cofh.lib.util.helpers.StringHelper.getTextComponent;
 import static net.minecraft.nbt.Tag.TAG_COMPOUND;
+import static net.minecraft.nbt.Tag.TAG_ANY_NUMERIC;
 
 public class DetonatorItem extends ItemCoFH implements IMultiModeItem {
 
@@ -50,8 +52,8 @@ public class DetonatorItem extends ItemCoFH implements IMultiModeItem {
     public DetonatorItem(Properties builder) {
 
         super(builder);
-        ProxyUtils.registerItemModelProperty(this, new ResourceLocation("primed"), (stack, world, living, seed) -> (getMode(stack) == 0 && getPrimedCount(stack) > 0 ? 1.0F : 0.0F));
-        ProxyUtils.registerItemModelProperty(this, new ResourceLocation("armed"), (stack, world, living, seed) -> (getMode(stack) == 1 && getPrimedCount(stack) > 0 ? 1.0F : 0.0F));
+        ProxyUtils.registerItemModelProperty(this, ResourceLocation.parse("primed"), (stack, world, living, seed) -> (getMode(stack) == 0 && getPrimedCount(stack) > 0 ? 1.0F : 0.0F));
+        ProxyUtils.registerItemModelProperty(this, ResourceLocation.parse("armed"), (stack, world, living, seed) -> (getMode(stack) == 1 && getPrimedCount(stack) > 0 ? 1.0F : 0.0F));
     }
 
     @Override
@@ -81,13 +83,16 @@ public class DetonatorItem extends ItemCoFH implements IMultiModeItem {
             return false;
         }
         if (TNT_MAP.containsKey(world.getBlockState(pos).getBlock())) {
-            ListTag primedTNT = stack.getOrCreateTag().getList(TAG_PRIMED, TAG_COMPOUND);
-            CompoundTag tntPos = NbtUtils.writeBlockPos(pos);
+            ListTag primedTNT = getPrimedPositions(stack);
+            CompoundTag tntPos = new CompoundTag();
+            tntPos.putInt("X", pos.getX());
+            tntPos.putInt("Y", pos.getY());
+            tntPos.putInt("Z", pos.getZ());
             if (primedTNT.size() >= MAX_PRIMED || primedTNT.contains(tntPos)) {
                 return false;
             }
             primedTNT.add(tntPos);
-            stack.getOrCreateTag().put(TAG_PRIMED, primedTNT);
+            CustomData.update(DataComponents.CUSTOM_DATA, stack, data -> data.put(TAG_PRIMED, primedTNT));
             return true;
         }
         return false;
@@ -99,12 +104,13 @@ public class DetonatorItem extends ItemCoFH implements IMultiModeItem {
             return false;
         }
         if (Utils.isServerWorld(world)) {
-            ListTag primedTNT = stack.getOrCreateTag().getList(TAG_PRIMED, TAG_COMPOUND);
-            for (int i = 0; i < primedTNT.size(); ++i) {
-                BlockPos tntPos = NbtUtils.readBlockPos(primedTNT.getCompound(i));
-                attemptDetonate(world, tntPos, player, 0);
+            for (var entry : getPrimedPositions(stack)) {
+                if (entry instanceof CompoundTag pos && pos.contains("X", TAG_ANY_NUMERIC)
+                        && pos.contains("Y", TAG_ANY_NUMERIC) && pos.contains("Z", TAG_ANY_NUMERIC)) {
+                    attemptDetonate(world, new BlockPos(pos.getInt("X"), pos.getInt("Y"), pos.getInt("Z")), player, 0);
+                }
             }
-            stack.removeTagKey(TAG_PRIMED);
+            CustomData.update(DataComponents.CUSTOM_DATA, stack, data -> data.remove(TAG_PRIMED));
         }
         setMode(stack, 0);
         return true;
@@ -127,11 +133,12 @@ public class DetonatorItem extends ItemCoFH implements IMultiModeItem {
 
     protected int getPrimedCount(ItemStack stack) {
 
-        if (!stack.hasTag()) {
-            return 0;
-        }
-        ListTag primedTNT = stack.getTag().getList(TAG_PRIMED, TAG_COMPOUND);
-        return primedTNT.size();
+        return getPrimedPositions(stack).size();
+    }
+
+    private static ListTag getPrimedPositions(ItemStack stack) {
+
+        return stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag().getList(TAG_PRIMED, TAG_COMPOUND);
     }
 
     @Override
@@ -159,7 +166,7 @@ public class DetonatorItem extends ItemCoFH implements IMultiModeItem {
 
         ItemStack stack = player.getItemInHand(hand);
         if (player.isSecondaryUseActive()) {
-            stack.removeTagKey(TAG_PRIMED);
+            CustomData.update(DataComponents.CUSTOM_DATA, stack, data -> data.remove(TAG_PRIMED));
             player.playSound(SoundEvents.EXPERIENCE_ORB_PICKUP, 0.5F, 0.3F);
             return InteractionResultHolder.success(stack);
         }

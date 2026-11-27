@@ -1,38 +1,26 @@
 package cofh.thermal.core;
 
-import cofh.core.client.event.CoreClientEvents;
-import cofh.core.client.renderer.entity.TNTMinecartRendererCoFH;
 import cofh.core.common.config.ConfigManager;
 import cofh.core.common.config.world.FeatureConfig;
-import cofh.lib.client.renderer.entity.TntRendererCoFH;
+import cofh.lib.api.item.IEnergyContainerItem;
+import cofh.lib.api.item.IFluidContainerItem;
+import cofh.lib.common.energy.EnergyContainerItemWrapper;
+import cofh.lib.common.fluid.FluidContainerItemWrapper;
 import cofh.lib.util.DeferredRegisterCoFH;
-import cofh.thermal.core.client.gui.ChargeBenchScreen;
-import cofh.thermal.core.client.gui.TinkerBenchScreen;
-import cofh.thermal.core.client.gui.device.*;
-import cofh.thermal.core.client.gui.storage.EnergyCellScreen;
-import cofh.thermal.core.client.gui.storage.FluidCellScreen;
-import cofh.thermal.core.client.gui.storage.SatchelScreen;
-import cofh.thermal.core.client.renderer.entity.*;
-import cofh.thermal.core.client.renderer.entity.model.*;
 import cofh.thermal.core.common.config.*;
-import cofh.thermal.core.common.entity.explosive.DetonateUtils;
 import cofh.thermal.core.common.entity.monster.Basalz;
 import cofh.thermal.core.common.entity.monster.Blitz;
 import cofh.thermal.core.common.entity.monster.Blizz;
-import cofh.thermal.core.common.fluid.RedstoneFluid;
 import cofh.thermal.core.init.registries.*;
 import cofh.thermal.lib.util.ThermalProxy;
 import cofh.thermal.lib.util.ThermalProxyClient;
-import com.mojang.serialization.Codec;
-import net.minecraft.client.renderer.ItemBlockRenderTypes;
-import net.minecraft.client.renderer.RenderType;
-import net.minecraft.client.renderer.entity.ThrownItemRenderer;
+import com.mojang.serialization.MapCodec;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.SpawnPlacements;
+import net.minecraft.world.entity.SpawnPlacementTypes;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.Item;
@@ -47,15 +35,13 @@ import net.minecraft.world.level.material.Fluid;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
-import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
-import net.neoforged.neoforge.client.event.EntityRenderersEvent;
-import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
+import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.common.loot.IGlobalLootModifier;
 import net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent;
-import net.neoforged.neoforge.event.entity.SpawnPlacementRegisterEvent;
+import net.neoforged.neoforge.event.entity.RegisterSpawnPlacementsEvent;
 import net.neoforged.neoforge.fluids.FluidType;
 import net.neoforged.neoforge.registries.NeoForgeRegistries;
 import net.neoforged.neoforge.registries.NewRegistryEvent;
@@ -66,9 +52,10 @@ import static cofh.lib.util.FlagManager.getFlag;
 import static cofh.lib.util.FlagManager.setFlag;
 import static cofh.lib.util.constants.ModIds.ID_THERMAL;
 import static cofh.thermal.core.init.registries.TCoreEntities.*;
-import static cofh.thermal.core.init.registries.TCoreMenus.*;
 import static cofh.thermal.lib.util.ThermalFlags.*;
 import static cofh.thermal.lib.util.ThermalIDs.ID_TINKER_BENCH;
+import static cofh.thermal.lib.util.ThermalIDs.ID_ENERGY_CELL;
+import static cofh.thermal.lib.util.ThermalIDs.ID_FLUID_CELL;
 
 @Mod (ID_THERMAL)
 public class ThermalCore {
@@ -94,14 +81,14 @@ public class ThermalCore {
     public static final DeferredRegisterCoFH<PlacementModifierType<?>> PLACEMENT_MODIFIERS = DeferredRegisterCoFH.create(Registries.PLACEMENT_MODIFIER_TYPE, ID_THERMAL);
 
     public static final DeferredRegisterCoFH<FluidType> FLUID_TYPES = DeferredRegisterCoFH.create(NeoForgeRegistries.Keys.FLUID_TYPES, ID_THERMAL);
-    public static final DeferredRegisterCoFH<Codec<? extends IGlobalLootModifier>> LOOT_SERIALIZERS = DeferredRegisterCoFH.create(NeoForgeRegistries.Keys.GLOBAL_LOOT_MODIFIER_SERIALIZERS, ID_THERMAL);
+    public static final DeferredRegisterCoFH<MapCodec<? extends IGlobalLootModifier>> LOOT_SERIALIZERS = DeferredRegisterCoFH.create(NeoForgeRegistries.Keys.GLOBAL_LOOT_MODIFIER_SERIALIZERS, ID_THERMAL);
 
     public ThermalCore(ModContainer modContainer, IEventBus modEventBus) {
 
         setFeatureFlags();
         addOreConfigs();
 
-        CONFIG_MANAGER.register(modEventBus)
+        CONFIG_MANAGER.register(modContainer, modEventBus)
                 .addClientConfig(new ThermalClientConfig())
                 .addServerConfig(new ThermalCoreConfig())
                 .addServerConfig(new ThermalDeviceConfig())
@@ -109,13 +96,9 @@ public class ThermalCore {
                 .addCommonConfig(new ThermalWorldConfig());
 
         modEventBus.addListener(this::entityAttributeSetup);
-        modEventBus.addListener(this::entityLayerSetup);
-        modEventBus.addListener(this::entityRendererSetup);
         modEventBus.addListener(this::spawnPlacementSetup);
         modEventBus.addListener(this::capabilitySetup);
-        modEventBus.addListener(this::menuScreenSetup);
         modEventBus.addListener(this::commonSetup);
-        modEventBus.addListener(this::clientSetup);
         modEventBus.addListener(this::registrySetup);
 
         BLOCKS.register(modEventBus);
@@ -190,71 +173,24 @@ public class ThermalCore {
         event.put(BLIZZ.get(), Blizz.registerAttributes().build());
     }
 
-    private void entityLayerSetup(final EntityRenderersEvent.RegisterLayerDefinitions event) {
+    private void spawnPlacementSetup(final RegisterSpawnPlacementsEvent event) {
 
-        event.registerLayerDefinition(BasalzModel.BASALZ_LAYER, BasalzModel::createBodyLayer);
-        event.registerLayerDefinition(BlitzModel.BLITZ_LAYER, BlitzModel::createBodyLayer);
-        event.registerLayerDefinition(BlizzModel.BLIZZ_LAYER, BlizzModel::createBodyLayer);
-
-        event.registerLayerDefinition(SantaHatModel.HAT_LAYER, SantaHatModel::createBodyLayer);
-
-        event.registerLayerDefinition(ElementalProjectileModel.PROJECTILE_LAYER, ElementalProjectileModel::createBodyLayer);
-    }
-
-    private void entityRendererSetup(final EntityRenderersEvent.RegisterRenderers event) {
-
-        event.registerEntityRenderer(THROWN_FLORB.get(), ThrownItemRenderer::new);
-
-        for (var grenade : DetonateUtils.GRENADES) {
-            event.registerEntityRenderer(grenade.get(), ThrownItemRenderer::new);
-        }
-        for (var tnt : DetonateUtils.TNT) {
-            event.registerEntityRenderer(tnt.get(), TntRendererCoFH::new);
-        }
-        for (var cart : DetonateUtils.CARTS) {
-            event.registerEntityRenderer(cart.get(), TNTMinecartRendererCoFH::new);
-        }
-        event.registerEntityRenderer(BASALZ.get(), BasalzRenderer::new);
-        event.registerEntityRenderer(BLITZ.get(), BlitzRenderer::new);
-        event.registerEntityRenderer(BLIZZ.get(), BlizzRenderer::new);
-
-        event.registerEntityRenderer(BASALZ_PROJECTILE.get(), BasalzProjectileRenderer::new);
-        event.registerEntityRenderer(BLITZ_PROJECTILE.get(), BlitzProjectileRenderer::new);
-        event.registerEntityRenderer(BLIZZ_PROJECTILE.get(), BlizzProjectileRenderer::new);
-    }
-
-    private void spawnPlacementSetup(final SpawnPlacementRegisterEvent event) {
-
-        event.register(BASALZ.get(), SpawnPlacements.Type.ON_GROUND, Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, Basalz::canSpawn, SpawnPlacementRegisterEvent.Operation.REPLACE);
-        event.register(BLITZ.get(), SpawnPlacements.Type.ON_GROUND, Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, Blitz::canSpawn, SpawnPlacementRegisterEvent.Operation.REPLACE);
-        event.register(BLIZZ.get(), SpawnPlacements.Type.ON_GROUND, Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, Blizz::canSpawn, SpawnPlacementRegisterEvent.Operation.REPLACE);
+        event.register(BASALZ.get(), SpawnPlacementTypes.ON_GROUND, Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, Basalz::canSpawn, RegisterSpawnPlacementsEvent.Operation.REPLACE);
+        event.register(BLITZ.get(), SpawnPlacementTypes.ON_GROUND, Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, Blitz::canSpawn, RegisterSpawnPlacementsEvent.Operation.REPLACE);
+        event.register(BLIZZ.get(), SpawnPlacementTypes.ON_GROUND, Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, Blizz::canSpawn, RegisterSpawnPlacementsEvent.Operation.REPLACE);
     }
 
     private void capabilitySetup(RegisterCapabilitiesEvent event) {
 
         TCoreBlockEntities.capabilitySetup(event);
-    }
-
-    private void menuScreenSetup(final RegisterMenuScreensEvent event) {
-
-        event.register(DEVICE_HIVE_EXTRACTOR_CONTAINER.get(), DeviceHiveExtractorScreen::new);
-        event.register(DEVICE_TREE_EXTRACTOR_CONTAINER.get(), DeviceTreeExtractorScreen::new);
-        event.register(DEVICE_FISHER_CONTAINER.get(), DeviceFisherScreen::new);
-        event.register(DEVICE_COMPOSTER_CONTAINER.get(), DeviceComposterScreen::new);
-        event.register(DEVICE_SOIL_INFUSER_CONTAINER.get(), DeviceSoilInfuserScreen::new);
-        event.register(DEVICE_WATER_GEN_CONTAINER.get(), DeviceWaterGenScreen::new);
-        event.register(DEVICE_ROCK_GEN_CONTAINER.get(), DeviceRockGenScreen::new);
-        event.register(DEVICE_COLLECTOR_CONTAINER.get(), DeviceCollectorScreen::new);
-        event.register(DEVICE_XP_CONDENSER_CONTAINER.get(), DeviceXpCondenserScreen::new);
-        event.register(DEVICE_POTION_DIFFUSER_CONTAINER.get(), DevicePotionDiffuserScreen::new);
-        event.register(DEVICE_NULLIFIER_CONTAINER.get(), DeviceNullifierScreen::new);
-        event.register(TINKER_BENCH_CONTAINER.get(), TinkerBenchScreen::new);
-        event.register(CHARGE_BENCH_CONTAINER.get(), ChargeBenchScreen::new);
-        event.register(SATCHEL_CONTAINER.get(), SatchelScreen::new);
-        event.register(ENERGY_CELL_CONTAINER.get(), EnergyCellScreen::new);
-        event.register(FLUID_CELL_CONTAINER.get(), FluidCellScreen::new);
-
-        // event.register(ITEM_CELL_CONTAINER, ItemCellScreen::new);
+        Item energyCell = ITEMS.get(ID_ENERGY_CELL);
+        IEnergyContainerItem energyContainer = (IEnergyContainerItem) energyCell;
+        event.registerItem(Capabilities.EnergyStorage.ITEM,
+                (stack, context) -> new EnergyContainerItemWrapper(stack, energyContainer), energyCell);
+        Item fluidCell = ITEMS.get(ID_FLUID_CELL);
+        IFluidContainerItem fluidContainer = (IFluidContainerItem) fluidCell;
+        event.registerItem(Capabilities.FluidHandler.ITEM,
+                (stack, context) -> new FluidContainerItemWrapper(stack, fluidContainer), fluidCell);
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {
@@ -265,26 +201,11 @@ public class ThermalCore {
         event.enqueueWork(TCoreEntities::setup);
     }
 
-    private void clientSetup(final FMLClientSetupEvent event) {
-
-        event.enqueueWork(this::registerRenderLayers);
-
-        event.enqueueWork(() -> CoreClientEvents.addNamespace(ID_THERMAL));
-    }
-
     private void registrySetup(final NewRegistryEvent event) {
 
         CONFIG_MANAGER.setupClient();
         CONFIG_MANAGER.setupServer();
         CONFIG_MANAGER.setupCommon();
-    }
-    // endregion
-
-    // region HELPERS
-    private void registerRenderLayers() {
-
-        ItemBlockRenderTypes.setRenderLayer(RedstoneFluid.instance().still().get(), RenderType.translucent());
-        ItemBlockRenderTypes.setRenderLayer(RedstoneFluid.instance().flowing().get(), RenderType.translucent());
     }
     // endregion
 }

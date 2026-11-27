@@ -6,7 +6,7 @@
   "overrides": [
     {
       "predicate": {
-        "thrown": 1
+        "custom_model_data": 1
       },
       "model": "thermal:item/ice_grenade_thrown"
     }

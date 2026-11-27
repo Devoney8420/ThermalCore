@@ -10,8 +10,9 @@ import cofh.thermal.core.util.managers.device.RockGenManager;
 import cofh.thermal.lib.common.block.entity.DeviceBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.BiomeTags;
 import net.minecraft.world.entity.player.Inventory;
@@ -204,7 +205,7 @@ public class DeviceRockGenBlockEntity extends DeviceBlockEntity implements ITick
 
     // region NETWORK
     @Override
-    public FriendlyByteBuf getGuiPacket(FriendlyByteBuf buffer) {
+    public RegistryFriendlyByteBuf getGuiPacket(RegistryFriendlyByteBuf buffer) {
 
         super.getGuiPacket(buffer);
 
@@ -215,7 +216,7 @@ public class DeviceRockGenBlockEntity extends DeviceBlockEntity implements ITick
     }
 
     @Override
-    public void handleGuiPacket(FriendlyByteBuf buffer) {
+    public void handleGuiPacket(RegistryFriendlyByteBuf buffer) {
 
         super.handleGuiPacket(buffer);
 
@@ -225,7 +226,7 @@ public class DeviceRockGenBlockEntity extends DeviceBlockEntity implements ITick
 
     // STATE
     @Override
-    public FriendlyByteBuf getStatePacket(FriendlyByteBuf buffer) {
+    public RegistryFriendlyByteBuf getStatePacket(RegistryFriendlyByteBuf buffer) {
 
         super.getStatePacket(buffer);
 
@@ -239,36 +240,36 @@ public class DeviceRockGenBlockEntity extends DeviceBlockEntity implements ITick
     }
 
     @Override
-    public void handleStatePacket(FriendlyByteBuf buffer) {
+    public void handleStatePacket(RegistryFriendlyByteBuf buffer) {
 
         super.handleStatePacket(buffer);
 
         process = buffer.readInt();
         adjLava = buffer.readInt();
 
-        below = BuiltInRegistries.BLOCK.get(new ResourceLocation(buffer.readUtf()));
-        adjacent = BuiltInRegistries.BLOCK.get(new ResourceLocation(buffer.readUtf()));
+        below = BuiltInRegistries.BLOCK.get(ResourceLocation.parse(buffer.readUtf()));
+        adjacent = BuiltInRegistries.BLOCK.get(ResourceLocation.parse(buffer.readUtf()));
     }
     // endregion
 
     // region NBT
     @Override
-    public void load(CompoundTag nbt) {
+    protected void loadAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
 
-        super.load(nbt);
+        super.loadAdditional(nbt, registries);
 
         process = nbt.getInt(TAG_PROCESS);
         processMax = nbt.getInt(TAG_PROCESS_MAX);
         adjLava = nbt.getInt("Lava");
 
-        below = BuiltInRegistries.BLOCK.get(new ResourceLocation(nbt.getString("Below")));
-        adjacent = BuiltInRegistries.BLOCK.get(new ResourceLocation(nbt.getString("Adjacent")));
+        below = BuiltInRegistries.BLOCK.get(ResourceLocation.parse(nbt.getString("Below")));
+        adjacent = BuiltInRegistries.BLOCK.get(ResourceLocation.parse(nbt.getString("Adjacent")));
     }
 
     @Override
-    public void saveAdditional(CompoundTag nbt) {
+    protected void saveAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
 
-        super.saveAdditional(nbt);
+        super.saveAdditional(nbt, registries);
 
         nbt.putInt(TAG_PROCESS, process);
         nbt.putInt(TAG_PROCESS_MAX, processMax);

@@ -9,7 +9,7 @@ import cofh.core.util.helpers.FilterHelper;
 import cofh.core.util.helpers.RenderHelper;
 import cofh.lib.util.helpers.SecurityHelper;
 import cofh.thermal.core.common.inventory.storage.SatchelMenu;
-import com.mojang.blaze3d.platform.GlStateManager;
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
@@ -26,9 +26,10 @@ import static cofh.lib.util.Constants.PATH_GUI;
 
 public class SatchelScreen extends ContainerScreenCoFH<SatchelMenu> {
 
-    public static final ResourceLocation TEXTURE = new ResourceLocation(PATH_GUI + "generic.png");
-    public static final ResourceLocation TEXTURE_EXT = new ResourceLocation(PATH_GUI + "generic_extension.png");
-    public static final ResourceLocation SLOT_OVERLAY = new ResourceLocation(PATH_ELEMENTS + "locked_overlay_slot.png");
+    public static final ResourceLocation TEXTURE = ResourceLocation.parse(PATH_GUI + "generic.png");
+    public static final ResourceLocation TEXTURE_EXT = ResourceLocation.parse(PATH_GUI + "generic_extension.png");
+    public static final ResourceLocation SLOT_OVERLAY = ResourceLocation.parse(PATH_ELEMENTS + "locked_overlay_slot.png");
+    private static final int LOCKED_SLOT_OVERLAY_Z = 210;
 
     protected int renderExtension;
 
@@ -72,7 +73,7 @@ public class SatchelScreen extends ContainerScreenCoFH<SatchelMenu> {
         }
                 .setSize(16, 16)
                 .setTexture(NAV_FILTER, 16, 16)
-                .setTooltipFactory((element, mouseX, mouseY) -> ((IFilterableItem) menu.getSatchel().getItem()).getFilter(menu.getSatchel()) instanceof MenuProvider menuProvider ? Collections.singletonList(menuProvider.getDisplayName()) : Collections.emptyList())
+                .setTooltipFactory((element, mouseX, mouseY) -> ((IFilterableItem) menu.getSatchel().getItem()).getFilter(menu.getSatchel(), getMinecraft().level.registryAccess()) instanceof MenuProvider menuProvider ? Collections.singletonList(menuProvider.getDisplayName()) : Collections.emptyList())
                 .setVisible(() -> FilterHelper.hasFilter(menu.getSatchel())));
     }
 
@@ -100,15 +101,14 @@ public class SatchelScreen extends ContainerScreenCoFH<SatchelMenu> {
     }
 
     @Override
-    protected void renderLabels(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+    protected void renderSlot(GuiGraphics guiGraphics, Slot slot) {
 
-        super.renderLabels(guiGraphics, mouseX, mouseY);
-
-        GlStateManager._enableBlend();
-        RenderHelper.setPosTexShader();
-        RenderHelper.setShaderTexture0(SLOT_OVERLAY);
-        drawTexturedModalRect(guiGraphics, menu.lockedSlot.x, menu.lockedSlot.y, 0, 0, 16, 16, 16, 16);
-        GlStateManager._disableBlend();
+        super.renderSlot(guiGraphics, slot);
+        if (slot == menu.lockedSlot) {
+            RenderSystem.enableBlend();
+            guiGraphics.blit(SLOT_OVERLAY, slot.x, slot.y, LOCKED_SLOT_OVERLAY_Z, 0, 0, 16, 16, 16, 16);
+            RenderSystem.disableBlend();
+        }
     }
 
 }

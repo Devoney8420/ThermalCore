@@ -6,10 +6,13 @@ import cofh.lib.common.energy.EnergyStorageCoFH;
 import cofh.thermal.core.common.block.entity.storage.EnergyCellBlockEntity;
 import cofh.thermal.lib.common.item.BlockItemAugmentable;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 
@@ -21,6 +24,7 @@ import static cofh.core.util.helpers.AugmentableHelper.setAttributeFromAugmentMa
 import static cofh.lib.api.ContainerType.ENERGY;
 import static cofh.lib.util.constants.NBTTags.*;
 import static cofh.lib.util.helpers.StringHelper.*;
+import static cofh.thermal.core.init.registries.TCoreBlockEntities.ENERGY_CELL_TILE;
 
 public class EnergyCellBlockItem extends BlockItemAugmentable implements IEnergyContainerItem {
 
@@ -43,33 +47,28 @@ public class EnergyCellBlockItem extends BlockItemAugmentable implements IEnergy
         addEnergyTooltip(stack, worldIn, tooltip, flagIn, getExtract(stack), getReceive(stack), creative);
     }
 
-    protected void setAttributesFromAugment(ItemStack container, CompoundTag augmentData) {
-
-        CompoundTag subTag = container.getTagElement(TAG_PROPERTIES);
-        if (subTag == null) {
-            return;
-        }
+    protected void setAttributesFromAugment(CompoundTag subTag, CompoundTag augmentData) {
         setAttributeFromAugmentMax(subTag, augmentData, TAG_AUGMENT_BASE_MOD);
         setAttributeFromAugmentMax(subTag, augmentData, TAG_AUGMENT_RF_STORAGE);
         setAttributeFromAugmentMax(subTag, augmentData, TAG_AUGMENT_RF_XFER);
         setAttributeFromAugmentMax(subTag, augmentData, TAG_AUGMENT_RF_CREATIVE);
     }
 
-    //    @Override
-    //    public ICapabilityProvider initCapabilities(ItemStack stack, @Nullable CompoundTag nbt) {
-    //
-    //        return new EnergyContainerItemWrapper(stack, this);
-    //    }
-
     // region IEnergyContainerItem
     @Override
     public CompoundTag getOrCreateEnergyTag(ItemStack container) {
 
-        CompoundTag blockTag = container.getOrCreateTagElement(TAG_BLOCK_ENTITY);
+        CompoundTag blockTag = container.getOrDefault(DataComponents.BLOCK_ENTITY_DATA, CustomData.EMPTY).copyTag();
         if (!blockTag.contains(TAG_ENERGY_MAX)) {
             new EnergyStorageCoFH(EnergyCellBlockEntity.BASE_CAPACITY, EnergyCellBlockEntity.BASE_RECV, EnergyCellBlockEntity.BASE_SEND).writeWithParams(blockTag);
         }
-        return container.getOrCreateTagElement(TAG_BLOCK_ENTITY);
+        return blockTag;
+    }
+
+    @Override
+    public void writeEnergyTag(ItemStack container, CompoundTag tag) {
+
+        BlockItem.setBlockEntityData(container, ENERGY_CELL_TILE.get(), tag);
     }
 
     @Override
@@ -100,14 +99,15 @@ public class EnergyCellBlockItem extends BlockItemAugmentable implements IEnergy
     @Override
     public void updateAugmentState(ItemStack container, List<ItemStack> augments) {
 
-        container.getOrCreateTag().put(TAG_PROPERTIES, new CompoundTag());
+        CompoundTag properties = new CompoundTag();
         for (ItemStack augment : augments) {
             CompoundTag augmentData = AugmentDataHelper.getAugmentData(augment);
             if (augmentData == null) {
                 continue;
             }
-            setAttributesFromAugment(container, augmentData);
+            setAttributesFromAugment(properties, augmentData);
         }
+        CustomData.update(DataComponents.CUSTOM_DATA, container, nbt -> nbt.put(TAG_PROPERTIES, properties));
         int energyExcess = getEnergyStored(container) - getMaxEnergyStored(container);
         if (energyExcess > 0) {
             setEnergyStored(container, getMaxEnergyStored(container));

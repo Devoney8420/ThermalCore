@@ -1,0 +1,8 @@
+{
+  "replace": false,
+  "values": [
+    "thermal:energy_cell",
+    "thermal:fluid_cell",
+    "thermal:rf_potato"
+  ]
+}

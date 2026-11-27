@@ -4,17 +4,18 @@ import cofh.lib.common.fluid.FluidIngredient;
 import cofh.lib.util.helpers.MathHelper;
 import cofh.lib.util.recipes.JsonMapCodec;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonSyntaxException;
-import com.mojang.serialization.Codec;
+import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.DataResult;
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeSerializer;
 import net.neoforged.neoforge.fluids.FluidStack;
 
-import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -32,17 +33,22 @@ public class MachineRecipeSerializer<T extends ThermalRecipe> implements RecipeS
     }
 
     @Override
-    public Codec<T> codec() {
+    public MapCodec<T> codec() {
 
         return JsonMapCodec.INSTANCE
                 .flatXmap(json -> {
                     try {
                         return DataResult.success(fromJson(json));
-                    } catch (JsonParseException e) {
+                    } catch (JsonParseException | IllegalStateException e) {
                         return DataResult.error(e::getMessage);
                     }
-                }, recipe -> DataResult.success(toJson(recipe)))
-                .codec();
+                }, recipe -> {
+                    try {
+                        return DataResult.success(toJson(recipe));
+                    } catch (IllegalStateException e) {
+                        return DataResult.error(e::getMessage);
+                    }
+                });
     }
 
     protected T fromJson(JsonObject json) {
@@ -101,12 +107,32 @@ public class MachineRecipeSerializer<T extends ThermalRecipe> implements RecipeS
 
     protected JsonObject toJson(T recipe) {
 
-        return null;
+        JsonObject json = new JsonObject();
+        json.add(INPUTS, writeInputs(recipe.inputItems, recipe.inputFluids));
+        json.addProperty(ENERGY, recipe.energy);
+        json.addProperty(XP, recipe.xp);
+        JsonArray outputs = new JsonArray();
+        for (int i = 0; i < recipe.outputItems.size(); ++i) {
+            JsonObject item = writeItemStack(recipe.outputItems.get(i));
+            float chance = recipe.outputItemChances.get(i);
+            item.addProperty(CHANCE, Math.abs(chance));
+            if (chance < 0.0F) {
+                item.addProperty(LOCKED, true);
+            }
+            outputs.add(item);
+        }
+        recipe.outputFluids.forEach(fluid -> outputs.add(writeFluidStack(fluid)));
+        json.add(OUTPUTS, outputs);
+        return json;
     }
 
-    @Nullable
     @Override
-    public T fromNetwork(FriendlyByteBuf buffer) {
+    public StreamCodec<RegistryFriendlyByteBuf, T> streamCodec() {
+
+        return StreamCodec.of(this::toNetwork, this::fromNetwork);
+    }
+
+    private T fromNetwork(RegistryFriendlyByteBuf buffer) {
 
         int energy = buffer.readVarInt();
         float experience = buffer.readFloat();
@@ -114,7 +140,7 @@ public class MachineRecipeSerializer<T extends ThermalRecipe> implements RecipeS
         int numInputItems = buffer.readVarInt();
         ArrayList<Ingredient> inputItems = new ArrayList<>(numInputItems);
         for (int i = 0; i < numInputItems; ++i) {
-            inputItems.add(Ingredient.fromNetwork(buffer));
+            inputItems.add(Ingredient.CONTENTS_STREAM_CODEC.decode(buffer));
         }
 
         int numInputFluids = buffer.readVarInt();
@@ -127,14 +153,14 @@ public class MachineRecipeSerializer<T extends ThermalRecipe> implements RecipeS
         ArrayList<ItemStack> outputItems = new ArrayList<>(numOutputItems);
         ArrayList<Float> outputItemChances = new ArrayList<>(numOutputItems);
         for (int i = 0; i < numOutputItems; ++i) {
-            outputItems.add(buffer.readItem());
+            outputItems.add(ItemStack.OPTIONAL_STREAM_CODEC.decode(buffer));
             outputItemChances.add(buffer.readFloat());
         }
 
         int numOutputFluids = buffer.readVarInt();
         ArrayList<FluidStack> outputFluids = new ArrayList<>(numOutputFluids);
         for (int i = 0; i < numOutputFluids; ++i) {
-            outputFluids.add(buffer.readFluidStack());
+            outputFluids.add(FluidStack.OPTIONAL_STREAM_CODEC.decode(buffer));
         }
         if (inputItems.isEmpty() && inputFluids.isEmpty() || outputItems.isEmpty() && outputFluids.isEmpty()) {
             throw new JsonSyntaxException("Invalid Thermal Series recipe! Please check your datapacks!");
@@ -142,8 +168,7 @@ public class MachineRecipeSerializer<T extends ThermalRecipe> implements RecipeS
         return factory.create(energy, experience, inputItems, inputFluids, outputItems, outputItemChances, outputFluids);
     }
 
-    @Override
-    public void toNetwork(FriendlyByteBuf buffer, T recipe) {
+    private void toNetwork(RegistryFriendlyByteBuf buffer, T recipe) {
 
         buffer.writeVarInt(recipe.energy);
         buffer.writeFloat(recipe.xp);
@@ -151,7 +176,7 @@ public class MachineRecipeSerializer<T extends ThermalRecipe> implements RecipeS
         int numInputItems = recipe.inputItems.size();
         buffer.writeVarInt(numInputItems);
         for (int i = 0; i < numInputItems; ++i) {
-            recipe.inputItems.get(i).toNetwork(buffer);
+            Ingredient.CONTENTS_STREAM_CODEC.encode(buffer, recipe.inputItems.get(i));
         }
         int numInputFluids = recipe.inputFluids.size();
         buffer.writeVarInt(numInputFluids);
@@ -161,13 +186,13 @@ public class MachineRecipeSerializer<T extends ThermalRecipe> implements RecipeS
         int numOutputItems = recipe.outputItems.size();
         buffer.writeVarInt(numOutputItems);
         for (int i = 0; i < numOutputItems; ++i) {
-            buffer.writeItem(recipe.outputItems.get(i));
+            ItemStack.OPTIONAL_STREAM_CODEC.encode(buffer, recipe.outputItems.get(i));
             buffer.writeFloat(recipe.outputItemChances.get(i));
         }
         int numOutputFluids = recipe.outputFluids.size();
         buffer.writeVarInt(numOutputFluids);
         for (int i = 0; i < numOutputFluids; ++i) {
-            buffer.writeFluidStack(recipe.outputFluids.get(i));
+            FluidStack.OPTIONAL_STREAM_CODEC.encode(buffer, recipe.outputFluids.get(i));
         }
     }
 

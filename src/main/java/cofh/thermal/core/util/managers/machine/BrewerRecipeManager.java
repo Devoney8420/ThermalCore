@@ -16,7 +16,10 @@ import cofh.thermal.lib.util.recipes.internal.IMachineRecipe;
 import cofh.thermal.lib.util.recipes.internal.SimpleMachineRecipe;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
+import net.minecraft.core.Holder;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.flag.FeatureFlags;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.alchemy.Potion;
 import net.minecraft.world.item.alchemy.PotionBrewing;
@@ -151,9 +154,10 @@ public class BrewerRecipeManager extends AbstractManager implements IRecipeManag
     public void refresh(RecipeManager recipeManager) {
 
         clear();
-        var recipes = recipeManager.byType(BREWER_RECIPE.get());
-        for (var entry : recipes.entrySet()) {
-            addRecipe(entry.getValue().value());
+        convertedRecipes.clear();
+        var recipes = recipeManager.getAllRecipesFor(BREWER_RECIPE.get());
+        for (var recipe : recipes) {
+            addRecipe(recipe.value());
         }
 
         if (defaultPotionRecipes) {
@@ -177,9 +181,16 @@ public class BrewerRecipeManager extends AbstractManager implements IRecipeManag
 
     protected void createConvertedRecipes() {
 
-        for (PotionBrewing.Mix<Potion> mix : PotionBrewing.POTION_MIXES) {
-            createConvertedRecipe(mix.from, mix.ingredient, mix.to);
-        }
+        PotionBrewing.addVanillaMixes(new PotionBrewing.Builder(FeatureFlags.DEFAULT_FLAGS) {
+            @Override
+            public void addMix(Holder<Potion> input, Item reagent, Holder<Potion> output) {
+
+                if (input.value().isEnabled(FeatureFlags.DEFAULT_FLAGS) && reagent.isEnabled(FeatureFlags.DEFAULT_FLAGS)
+                        && output.value().isEnabled(FeatureFlags.DEFAULT_FLAGS)) {
+                    createConvertedRecipe(input.value(), Ingredient.of(reagent), output.value());
+                }
+            }
+        });
     }
 
     protected boolean createConvertedRecipe(Potion inputPotion, Ingredient reagent, Potion outputPotion) {
@@ -193,7 +204,7 @@ public class BrewerRecipeManager extends AbstractManager implements IRecipeManag
 
     protected RecipeHolder<BrewerRecipe> convert(Potion inputPotion, Ingredient reagent, Potion outputPotion) {
 
-        return new RecipeHolder<>(new ResourceLocation(ID_THERMAL, "brewer_" + inputPotion.hashCode()),
+        return new RecipeHolder<>(ResourceLocation.fromNamespaceAndPath(ID_THERMAL, "brewer_" + inputPotion.hashCode()),
                 new BrewerRecipe(defaultEnergy, 0.0F,
                         Collections.singletonList(reagent),
                         Collections.singletonList(FluidIngredient.of(PotionFluid.getPotionAsFluid(defaultPotion, inputPotion))),

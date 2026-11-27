@@ -1,5 +1,6 @@
 package cofh.thermal.core.common.block.entity.device;
 
+import cofh.core.common.fluid.PotionFluid;
 import cofh.core.common.network.packet.client.TileStatePacket;
 import cofh.core.util.helpers.AugmentDataHelper;
 import cofh.core.util.helpers.FluidHelper;
@@ -14,9 +15,10 @@ import cofh.thermal.core.common.inventory.device.DevicePotionDiffuserMenu;
 import cofh.thermal.core.util.managers.device.PotionDiffuserManager;
 import cofh.thermal.lib.common.block.entity.DeviceBlockEntity;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.Connection;
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.EntitySelector;
@@ -25,8 +27,7 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.alchemy.PotionUtils;
-import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.enchantment.ItemEnchantments;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.phys.AABB;
@@ -36,9 +37,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
+import java.util.stream.StreamSupport;
 
 import static cofh.core.client.renderer.model.ModelUtils.FLUID;
 import static cofh.core.util.helpers.AugmentableHelper.getAttributeMod;
@@ -158,9 +159,9 @@ public class DevicePotionDiffuserBlockEntity extends DeviceBlockEntity implement
 
     // region NETWORK
     @Override
-    public void onDataPacket(Connection net, ClientboundBlockEntityDataPacket pkt) {
+    public void onDataPacket(Connection net, ClientboundBlockEntityDataPacket pkt, HolderLookup.Provider registries) {
 
-        super.onDataPacket(net, pkt);
+        super.onDataPacket(net, pkt, registries);
 
         if (level != null) {
             level.getModelDataManager().requestRefresh(this);
@@ -169,7 +170,7 @@ public class DevicePotionDiffuserBlockEntity extends DeviceBlockEntity implement
 
     // CONTROL
     @Override
-    public void handleControlPacket(FriendlyByteBuf buffer) {
+    public void handleControlPacket(RegistryFriendlyByteBuf buffer) {
 
         super.handleControlPacket(buffer);
 
@@ -180,7 +181,7 @@ public class DevicePotionDiffuserBlockEntity extends DeviceBlockEntity implement
 
     // GUI
     @Override
-    public FriendlyByteBuf getGuiPacket(FriendlyByteBuf buffer) {
+    public RegistryFriendlyByteBuf getGuiPacket(RegistryFriendlyByteBuf buffer) {
 
         super.getGuiPacket(buffer);
 
@@ -193,7 +194,7 @@ public class DevicePotionDiffuserBlockEntity extends DeviceBlockEntity implement
     }
 
     @Override
-    public void handleGuiPacket(FriendlyByteBuf buffer) {
+    public void handleGuiPacket(RegistryFriendlyByteBuf buffer) {
 
         super.handleGuiPacket(buffer);
 
@@ -205,7 +206,7 @@ public class DevicePotionDiffuserBlockEntity extends DeviceBlockEntity implement
 
     // STATE
     @Override
-    public FriendlyByteBuf getStatePacket(FriendlyByteBuf buffer) {
+    public RegistryFriendlyByteBuf getStatePacket(RegistryFriendlyByteBuf buffer) {
 
         super.getStatePacket(buffer);
 
@@ -216,7 +217,7 @@ public class DevicePotionDiffuserBlockEntity extends DeviceBlockEntity implement
     }
 
     @Override
-    public void handleStatePacket(FriendlyByteBuf buffer) {
+    public void handleStatePacket(RegistryFriendlyByteBuf buffer) {
 
         super.handleStatePacket(buffer);
 
@@ -231,9 +232,9 @@ public class DevicePotionDiffuserBlockEntity extends DeviceBlockEntity implement
 
     // region NBT
     @Override
-    public void load(CompoundTag nbt) {
+    protected void loadAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
 
-        super.load(nbt);
+        super.loadAdditional(nbt, registries);
 
         boostCycles = nbt.getInt(TAG_BOOST_CYCLES);
         boostMax = nbt.getInt(TAG_BOOST_MAX);
@@ -247,9 +248,9 @@ public class DevicePotionDiffuserBlockEntity extends DeviceBlockEntity implement
     }
 
     @Override
-    public void saveAdditional(CompoundTag nbt) {
+    protected void saveAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
 
-        super.saveAdditional(nbt);
+        super.saveAdditional(nbt, registries);
 
         nbt.putInt(TAG_BOOST_CYCLES, boostCycles);
         nbt.putInt(TAG_BOOST_MAX, boostMax);
@@ -286,9 +287,10 @@ public class DevicePotionDiffuserBlockEntity extends DeviceBlockEntity implement
                 cached = false;
             }
         } else if (!cached) {
-            effects = PotionUtils.getAllEffects(inputTank.getFluidStack().getTag());
+            var potion = PotionFluid.potionContents(inputTank.getFluidStack());
+            effects = StreamSupport.stream(potion.getAllEffects().spliterator(), false).toList();
             for (MobEffectInstance effect : effects) {
-                instant |= effect.getEffect().isInstantenous();
+                instant |= effect.getEffect().value().isInstantenous();
             }
             cached = true;
         }
@@ -323,8 +325,8 @@ public class DevicePotionDiffuserBlockEntity extends DeviceBlockEntity implement
         for (LivingEntity target : targets) {
             if (target.isAffectedByPotions()) {
                 for (MobEffectInstance effect : effects) {
-                    if (effect.getEffect().isInstantenous()) {
-                        effect.getEffect().applyInstantenousEffect(null, null, target, getEffectAmplifier(effect), 0.5D);
+                    if (effect.getEffect().value().isInstantenous()) {
+                        effect.getEffect().value().applyInstantenousEffect(null, null, target, getEffectAmplifier(effect), 0.5D);
                     } else {
                         MobEffectInstance potion = new MobEffectInstance(effect.getEffect(), getEffectDuration(effect), getEffectAmplifier(effect), effect.isAmbient(), effect.isVisible());
                         target.addEffect(potion);
@@ -397,9 +399,9 @@ public class DevicePotionDiffuserBlockEntity extends DeviceBlockEntity implement
     }
 
     @Override
-    protected void finalizeAttributes(Map<Enchantment, Integer> enchantmentMap) {
+    protected void finalizeAttributes(ItemEnchantments enchantments) {
 
-        super.finalizeAttributes(enchantmentMap);
+        super.finalizeAttributes(enchantments);
 
         area = null;
     }

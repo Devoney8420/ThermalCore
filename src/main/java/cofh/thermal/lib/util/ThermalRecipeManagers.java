@@ -1,6 +1,7 @@
 package cofh.thermal.lib.util;
 
 import cofh.thermal.lib.util.managers.IManager;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.world.item.crafting.RecipeManager;
 
 import java.util.ArrayList;
@@ -43,23 +44,23 @@ public class ThermalRecipeManagers {
         }
     }
 
-    public void refreshServer() {
+    public void refreshServer(HolderLookup.Provider registries) {
 
         if (this.serverRecipeManager == null) {
             return;
         }
         for (IManager sub : managers) {
-            sub.refresh(this.serverRecipeManager);
+            sub.refresh(this.serverRecipeManager, registries);
         }
     }
 
-    public void refreshClient() {
+    public void refreshClient(HolderLookup.Provider registries) {
 
         if (this.clientRecipeManager == null) {
             return;
         }
         for (IManager sub : managers) {
-            sub.refresh(this.clientRecipeManager);
+            sub.refresh(this.clientRecipeManager, registries);
         }
     }
     // endregion

@@ -9,7 +9,6 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.IntegerProperty;
-import net.neoforged.neoforge.common.IPlantable;
 
 public class ChargedSoilBlock extends SoilBlock {
 
@@ -34,13 +33,17 @@ public class ChargedSoilBlock extends SoilBlock {
         BlockPos abovePos = pos.above();
         BlockState aboveState = worldIn.getBlockState(abovePos);
 
-        if (aboveState.getBlock() instanceof IPlantable && aboveState.isRandomlyTicking()) {
+        if (isPlant(aboveState) && aboveState.isRandomlyTicking()) {
             int charge = state.getValue(CHARGED);
             int boost = 1 + charge;
             for (int i = 0; i < boost; ++i) {
-                aboveState.randomTick(worldIn, abovePos, rand);
+                BlockState plant = worldIn.getBlockState(abovePos);
+                if (plant.getBlock() != aboveState.getBlock() || !plant.isRandomlyTicking()) {
+                    break;
+                }
+                plant.randomTick(worldIn, abovePos, rand);
             }
-            if (rand.nextInt(boost) > 0) {
+            if (rand.nextInt(boost) > 0 && worldIn.getBlockState(pos) == state) {
                 worldIn.setBlock(pos, state.setValue(CHARGED, Math.max(0, charge - 1)), 2);
             }
         }
@@ -51,8 +54,8 @@ public class ChargedSoilBlock extends SoilBlock {
         int charge = state.getValue(CHARGED);
         if (charge < 4) {
             worldIn.setBlock(pos, state.setValue(CHARGED, charge + 1), 2);
-        } else if (worldIn instanceof ServerLevel) {
-            state.getBlock().tick(state, (ServerLevel) worldIn, pos, worldIn.random);
+        } else if (worldIn instanceof ServerLevel serverLevel) {
+            state.tick(serverLevel, pos, serverLevel.random);
         }
     }
 
