@@ -33,6 +33,7 @@ import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static cofh.lib.util.constants.NBTTags.TAG_SIDES;
 import static cofh.thermal.core.client.ThermalTextures.*;
@@ -41,11 +42,14 @@ import static net.minecraft.core.Direction.*;
 
 public class ItemCellBakedModel extends BakedModelWrapper<BakedModel> implements IDynamicBakedModel {
 
-    private static final Map<List<Integer>, BakedQuad> FACE_QUAD_CACHE = new Object2ObjectOpenHashMap<>();
-    private static final Int2ObjectMap<BakedQuad[]> SIDE_QUAD_CACHE = new Int2ObjectOpenHashMap<>();
+    private static final Map<FaceQuadKey, BakedQuad> FACE_QUAD_CACHE = new ConcurrentHashMap<>();
+    private static final Map<SideQuadKey, BakedQuad> SIDE_QUAD_CACHE = new ConcurrentHashMap<>();
 
     private static final Int2ObjectMap<BakedQuad[]> ITEM_QUAD_CACHE = new Int2ObjectOpenHashMap<>();
     private static final Map<List<Integer>, BakedModel> MODEL_CACHE = new Object2ObjectOpenHashMap<>();
+
+    private record SideQuadKey(BakedQuad base, byte config) {}
+    private record FaceQuadKey(BakedQuad base, int level) {}
 
     public static void clearCache() {
 
@@ -80,12 +84,9 @@ public class ItemCellBakedModel extends BakedModelWrapper<BakedModel> implements
                 // This shouldn't happen, but playing it safe.
                 return quads;
             }
-            BakedQuad faceQuad = FACE_QUAD_CACHE.get(Arrays.asList(face.get3DDataValue(), level));
-            if (faceQuad == null) {
-                faceQuad = new RetexturedBakedQuad(baseQuad, getLevelTexture(level));
-                FACE_QUAD_CACHE.put(Arrays.asList(face.get3DDataValue(), level), faceQuad);
-            }
-            quads.add(faceQuad);
+            var key = new FaceQuadKey(baseQuad, level);
+            quads.add(FACE_QUAD_CACHE.computeIfAbsent(key, quad ->
+                    new RetexturedBakedQuad(quad.base(), getLevelTexture(quad.level()))));
         }
 
         // SIDES
@@ -94,16 +95,11 @@ public class ItemCellBakedModel extends BakedModelWrapper<BakedModel> implements
             // This shouldn't happen, but playing it safe.
             return quads;
         }
-        int configHash = Arrays.hashCode(sideConfigRaw);
-        BakedQuad[] cachedSideQuads = SIDE_QUAD_CACHE.get(configHash);
-        if (cachedSideQuads == null || cachedSideQuads.length < 6) {
-            cachedSideQuads = new BakedQuad[6];
+        if (sideIndex < sideConfigRaw.length) {
+            var key = new SideQuadKey(baseQuad, sideConfigRaw[sideIndex]);
+            quads.add(SIDE_QUAD_CACHE.computeIfAbsent(key, quad ->
+                    new RetexturedBakedQuad(quad.base(), getConfigTexture(quad.config()))));
         }
-        if (cachedSideQuads[sideIndex] == null) {
-            cachedSideQuads[sideIndex] = new RetexturedBakedQuad(baseQuad, getConfigTexture(sideConfigRaw[sideIndex]));
-            SIDE_QUAD_CACHE.put(configHash, cachedSideQuads);
-        }
-        quads.add(cachedSideQuads[sideIndex]);
 
         return quads;
     }
